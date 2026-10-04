@@ -15,6 +15,11 @@ authors:
     website: "https://franciscoaldunate.cl"
     city: "Talca"
     country: "CL"
+doi: "10.5281/zenodo.23135545"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23135545"
+    description: "Zenodo archive (v0.2.1)"
 repository-code: "https://github.com/franciscoaldun/esp32c3-logisim"
 url: "https://franciscoaldunate.cl"
 license: MIT

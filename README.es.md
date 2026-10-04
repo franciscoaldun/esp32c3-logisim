@@ -2,6 +2,8 @@
 
 **Un microcontrolador ESP32-C3 completo, construido como circuito lógico en Logisim Evolution, que corre código escrito como en Arduino y en ESP-IDF, y pasa la suite oficial de pruebas de RISC-V.**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23135545.svg)](https://doi.org/10.5281/zenodo.23135545) ![riscv-tests 50/50](https://img.shields.io/badge/riscv--tests-50%2F50-brightgreen) ![Logisim Evolution 5](https://img.shields.io/badge/Logisim%20Evolution-5-blue) ![License MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+
 [English](README.md) · **Español**
 
 Por [Francisco Aldunate](https://franciscoaldunate.cl) · Talca, Chile · versión 0.2 · octubre de 2026
@@ -215,7 +217,7 @@ Otros proyectos: [sumador de 4 bits hecho solo con transistores](https://github.
 
 Si lo usas en clases, en una investigación o en una publicación, cítalo así (GitHub también lo ofrece en «Cite this repository», a partir de [`CITATION.cff`](CITATION.cff)):
 
-> Aldunate Rodríguez, F. (2026). *ESP32-C3 in Logisim: a gate-level ESP32-C3 microcontroller for Logisim Evolution* (versión 0.2). https://github.com/franciscoaldun/esp32c3-logisim
+> Aldunate Rodríguez, F. (2026). *ESP32-C3 in Logisim: a gate-level ESP32-C3 microcontroller for Logisim Evolution* (versión 0.2). https://doi.org/10.5281/zenodo.23135545
 
 ## Licencia
 
