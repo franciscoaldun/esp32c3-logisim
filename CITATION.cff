@@ -18,7 +18,7 @@ authors:
 repository-code: "https://github.com/franciscoaldun/esp32c3-logisim"
 url: "https://franciscoaldunate.cl"
 license: MIT
-version: "0.2"
+version: "0.2.1"
 date-released: "2026-10-04"
 keywords:
   - ESP32-C3
