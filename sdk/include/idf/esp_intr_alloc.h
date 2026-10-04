@@ -1,0 +1,10 @@
+#ifndef ESP_INTR_ALLOC_H
+#define ESP_INTR_ALLOC_H
+#define ESP_INTR_FLAG_LEVEL1    (1 << 1)
+#define ESP_INTR_FLAG_LEVEL2    (1 << 2)
+#define ESP_INTR_FLAG_LEVEL3    (1 << 3)
+#define ESP_INTR_FLAG_SHARED    (1 << 8)
+#define ESP_INTR_FLAG_EDGE      (1 << 9)
+#define ESP_INTR_FLAG_IRAM      (1 << 10)
+#define ESP_INTR_FLAG_LOWMED    (ESP_INTR_FLAG_LEVEL1 | ESP_INTR_FLAG_LEVEL2 | ESP_INTR_FLAG_LEVEL3)
+#endif

@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this model in teaching, research or a publication, please cite it as below."
+title: "ESP32-C3 in Logisim: a gate-level ESP32-C3 microcontroller for Logisim Evolution"
+abstract: >-
+  A complete ESP32-C3 microcontroller built as a digital logic circuit for Logisim Evolution:
+  a multicycle RISC-V RV32IMC CPU with CSRs and interrupts, system bus, boot ROM, FLASH, SRAM and
+  the digital peripherals (GPIO with IO MUX, UART, SYSTIMER, timer groups with watchdogs, LEDC PWM,
+  SPI, I2C, interrupt matrix), following the memory map of the real chip. It runs programs written
+  in Arduino and ESP-IDF style through a bundled SDK, includes a version whose ALU adder is built
+  from 896 CMOS transistors, and passes the official riscv-tests suite (rv32ui, rv32um, rv32uc).
+authors:
+  - family-names: "Aldunate Rodríguez"
+    given-names: "Francisco"
+    email: "franciscoaldun@gmail.com"
+    website: "https://franciscoaldunate.cl"
+    city: "Talca"
+    country: "CL"
+repository-code: "https://github.com/franciscoaldun/esp32c3-logisim"
+url: "https://franciscoaldunate.cl"
+license: MIT
+version: "0.2"
+date-released: "2026-10-04"
+keywords:
+  - ESP32-C3
+  - Logisim
+  - Logisim Evolution
+  - RISC-V
+  - RV32IMC
+  - microcontroller
+  - computer architecture
+  - digital logic
+  - CMOS
+  - riscv-tests
+  - Arduino
+  - ESP-IDF
+  - FreeRTOS
+  - education

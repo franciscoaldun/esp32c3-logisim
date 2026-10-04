@@ -1,0 +1,5 @@
+# salidas de compilar.py
+sdk/**/logisim/
+# salidas del arnes de riscv-tests
+verificacion/build_tests/
+__pycache__/

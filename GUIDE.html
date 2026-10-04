@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inside the ESP32-C3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column (~68 characters) with diagrams and widgets that widen up to 1060 px.
+   Colors taken from Logisim: light green = signal at 1, dark green = signal at 0, blue = bus/data. */
+:root {
+  --fondo: #f4f6f1;
+  --superficie: #ffffff;
+  --panel: #e9ede6;
+  --tinta: #17201a;
+  --tinta-suave: #4a564e;
+  --linea: #d2d9cf;
+  --cable: #a0aaa2;
+  --alto: #0e9a38;
+  --alto-suave: #dcf2e2;
+  --bajo: #23552f;
+  --bus: #1d5cc0;
+  --bus-suave: #e2eaf8;
+  --aviso: #b3410d;
+  --aviso-suave: #fae8dc;
+  --chip: #1f2622;
+  --chip-tinta: #e7eee8;
+  --chip-suave: #9fb0a5;
+  --led-off: #3a433d;
+  --f-texto: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-titulo: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", Consolas, "SFMono-Regular", Menlo, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fondo: #0f1411; --superficie: #151b17; --panel: #1b231e; --tinta: #e1e8e2; --tinta-suave: #a2afa6;
+    --linea: #2b3530; --cable: #56635a; --alto: #3bd166; --alto-suave: #163823; --bajo: #2f6b40;
+    --bus: #74a7ff; --bus-suave: #17243a; --aviso: #ff8d55; --aviso-suave: #3a2318;
+    --chip: #0a0e0c; --chip-tinta: #dfe7e1; --chip-suave: #8d9c92; --led-off: #29302b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --fondo: #0f1411; --superficie: #151b17; --panel: #1b231e; --tinta: #e1e8e2; --tinta-suave: #a2afa6;
+  --linea: #2b3530; --cable: #56635a; --alto: #3bd166; --alto-suave: #163823; --bajo: #2f6b40;
+  --bus: #74a7ff; --bus-suave: #17243a; --aviso: #ff8d55; --aviso-suave: #3a2318;
+  --chip: #0a0e0c; --chip-tinta: #dfe7e1; --chip-suave: #8d9c92; --led-off: #29302b; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--fondo); color: var(--tinta); font-family: var(--f-texto);
+  font-size: 1rem; line-height: 1.62; margin: 0; padding-inline: 18px; padding-block: 0 64px;
+}
+.contenedor { max-width: 1060px; margin: 0 auto; }
+p, li { max-width: 68ch; }
+a { color: var(--bus); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--bus); outline-offset: 2px; }
+code, kbd, .mono { font-family: var(--f-mono); font-size: 0.92em; }
+code { background: var(--panel); padding: 0.05em 0.35em; border-radius: 3px; }
+p code, li code, .logisim code { overflow-wrap: anywhere; }
+kbd {
+  background: var(--superficie); border: 1px solid var(--linea); border-bottom-width: 2px;
+  border-radius: 4px; padding: 0.05em 0.4em; white-space: nowrap; font-weight: 500;
+}
+strong { font-weight: 600; }
+h1, h2, h3 { font-family: var(--f-titulo); text-wrap: balance; line-height: 1.15; margin: 0; }
+h3 { font-size: 1.22rem; font-weight: 600; margin-top: 1.8rem; margin-bottom: 0.4rem; }
+
+/* ---------- cabecera */
+.cabecera { padding-block: 44px 28px; border-bottom: 1px solid var(--linea); }
+.antetitulo {
+  font-family: var(--f-mono); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--tinta-suave); margin: 0 0 10px;
+}
+h1 { font-size: clamp(2.3rem, 6vw, 3.6rem); font-weight: 700; letter-spacing: -0.01em; }
+.entrada { font-size: 1.15rem; color: var(--tinta-suave); margin: 14px 0 22px; max-width: 62ch; }
+.ruta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: 0; padding: 0; list-style: none;
+  font-family: var(--f-mono); font-size: 0.86rem;
+}
+.ruta li { display: flex; align-items: center; gap: 4px; max-width: none; }
+.ruta li + li::before { content: "›"; color: var(--cable); padding-inline: 2px; }
+.ruta a {
+  text-decoration: none; color: var(--tinta); background: var(--superficie); border: 1px solid var(--linea);
+  padding: 3px 9px; border-radius: 3px;
+}
+.ruta a:hover { border-color: var(--alto); color: var(--alto); }
+.ruta-nota { font-size: 0.85rem; color: var(--tinta-suave); margin-top: 10px; }
+
+/* ---------- índice */
+.indice { padding-block: 26px 8px; }
+.indice h2 { font-size: 0.82rem; font-family: var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--tinta-suave); font-weight: 500; }
+.indice ol { columns: 2 300px; column-gap: 40px; padding-left: 1.6em; margin: 12px 0 0; }
+.indice li { break-inside: avoid; padding-block: 2px; }
+.indice a { color: var(--tinta); text-decoration: none; }
+.indice a:hover { color: var(--alto); text-decoration: underline; }
+
+/* ---------- secciones */
+section { padding-block: 40px 8px; border-top: 1px solid var(--linea); margin-top: 32px; }
+section:first-of-type { border-top: 0; }
+.sec-cabeza { display: grid; grid-template-columns: auto 1fr; column-gap: 16px; align-items: baseline; margin-bottom: 14px; }
+.sec-num { font-family: var(--f-mono); color: var(--alto); font-size: 1.05rem; font-weight: 600; }
+.sec-cabeza h2 { font-size: clamp(1.6rem, 3.6vw, 2.15rem); font-weight: 600; }
+.donde {
+  grid-column: 2; font-family: var(--f-mono); font-size: 0.8rem; color: var(--tinta-suave); margin-top: 6px;
+}
+.donde b { font-weight: 500; color: var(--tinta); }
+
+.logisim {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline;
+  background: var(--panel); padding: 12px 16px; margin: 18px 0; max-width: 76ch; font-size: 0.95rem;
+}
+.logisim .etq {
+  font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--alto); font-weight: 600; white-space: nowrap;
+}
+.logisim > div { min-width: 0; }
+.logisim p { margin: 0; }
+.logisim p + p { margin-top: 6px; }
+
+.formula {
+  font-family: var(--f-mono); background: var(--superficie); border: 1px solid var(--linea);
+  padding: 10px 14px; display: inline-block; margin: 6px 0 12px; line-height: 1.8;
+}
+
+/* ---------- tablas */
+.tabla-env { overflow-x: auto; margin: 16px 0; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--linea); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--tinta-suave); font-weight: 500; }
+td.mono, td .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.grupo td { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--alto); padding-top: 16px; }
+
+/* ---------- niveles */
+.niveles { list-style: none; padding: 0; margin: 20px 0; display: grid; gap: 0; max-width: 820px; }
+.niveles li { display: grid; grid-template-columns: 9.5rem 1fr; gap: 4px 18px; padding: 12px 0; border-bottom: 1px solid var(--linea); max-width: none; }
+.niveles li:first-child { border-top: 1px solid var(--linea); }
+.niveles .nv { font-family: var(--f-titulo); font-weight: 600; font-size: 1.08rem; }
+.niveles .nv small { display: block; font-family: var(--f-mono); font-size: 0.74rem; font-weight: 400; color: var(--tinta-suave); }
+.niveles p { margin: 0; }
+.niveles .barra { height: 6px; background: var(--alto); margin-top: 6px; opacity: 0.85; }
+@media (max-width: 560px) { .niveles li { grid-template-columns: 1fr; } }
+
+/* ---------- pasos (pista de señal) */
+.pista { list-style: none; padding: 0; margin: 20px 0; counter-reset: paso; max-width: 76ch; }
+.pista > li { position: relative; padding: 0 0 18px 42px; counter-increment: paso; max-width: none; }
+.pista > li::before {
+  content: counter(paso); position: absolute; left: 0; top: 0.1em; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--superficie); border: 2px solid var(--alto); color: var(--alto); font-family: var(--f-mono);
+  font-size: 0.8rem; font-weight: 600; display: grid; place-items: center;
+}
+.pista > li::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--alto); opacity: 0.35; }
+.pista > li:last-child::after { display: none; }
+.pista h4 { margin: 0 0 2px; font-size: 1.02rem; font-weight: 600; font-family: var(--f-texto); }
+.pista p { margin: 0 0 4px; }
+.pista .mirar { font-size: 0.88rem; color: var(--tinta-suave); }
+.pista .mirar b { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--alto); font-weight: 600; margin-right: 6px; }
+
+/* ---------- cadena horizontal */
+.cadena { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 0; margin: 20px 0; padding: 0; list-style: none; }
+.cadena li { display: flex; align-items: center; max-width: none; }
+.cadena li + li::before { content: "→"; color: var(--alto); font-weight: 600; padding-inline: 8px; }
+.cadena span {
+  background: var(--superficie); border: 1px solid var(--linea); padding: 6px 10px; font-size: 0.86rem; line-height: 1.3;
+}
+.cadena span small { display: block; font-family: var(--f-mono); font-size: 0.72rem; color: var(--tinta-suave); }
+
+/* ---------- código */
+.codigo { position: relative; margin: 12px 0 16px; max-width: 76ch; }
+.codigo pre {
+  margin: 0; background: var(--chip); color: var(--chip-tinta); padding: 14px 16px; padding-right: 86px;
+  font-family: var(--f-mono); font-size: 0.88rem; line-height: 1.55; overflow-x: auto;
+}
+.codigo pre .com { color: var(--chip-suave); }
+.copiar {
+  position: absolute; top: 8px; right: 8px; font-family: var(--f-mono); font-size: 0.72rem;
+  background: transparent; color: var(--chip-tinta); border: 1px solid var(--chip-suave); padding: 3px 8px; cursor: pointer;
+}
+.copiar:hover { border-color: var(--chip-tinta); }
+
+/* ---------- widgets (comunes) */
+.widget { background: var(--superficie); border: 1px solid var(--linea); margin: 24px 0; padding: 18px; }
+.widget-cabeza { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.widget-cabeza h3 { margin: 0; font-size: 1.15rem; }
+.widget-cabeza .sub { font-size: 0.88rem; color: var(--tinta-suave); margin: 0; }
+.botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  font-family: var(--f-texto); font-size: 0.92rem; font-weight: 500; padding: 7px 14px; cursor: pointer;
+  background: var(--superficie); color: var(--tinta); border: 1px solid var(--cable); border-radius: 3px;
+}
+.btn:hover { border-color: var(--alto); }
+.btn.primario { background: var(--alto); color: var(--fondo); border-color: var(--alto); }
+.btn.primario:hover { filter: brightness(1.08); }
+.btn[aria-pressed="true"] { background: var(--alto-suave); border-color: var(--alto); color: var(--tinta); }
+.btn .k { font-family: var(--f-mono); font-size: 0.75rem; opacity: 0.8; margin-left: 4px; }
+.mensaje {
+  margin-top: 14px; padding: 10px 14px; background: var(--panel); font-size: 0.95rem; min-height: 3.2em; max-width: none;
+}
+.mensaje b { font-weight: 600; }
+
+/* ---------- widget: paso a paso */
+.pap { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 820px) { .pap { grid-template-columns: 1fr; } }
+.prog { width: 100%; font-family: var(--f-mono); font-size: 0.8rem; }
+.prog td { padding: 5px 8px 5px 4px; white-space: nowrap; }
+.prog td.c { white-space: normal; font-family: var(--f-texto); font-size: 0.82rem; color: var(--tinta-suave); min-width: 14ch; }
+.prog tr.actual td { background: var(--alto-suave); }
+.prog tr.actual td:first-child { box-shadow: inset 3px 0 0 var(--alto); }
+.prog .fase-tag { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; color: var(--alto); }
+.dbg { background: var(--chip); color: var(--chip-tinta); padding: 12px 14px; font-family: var(--f-mono); font-size: 0.8rem; }
+.dbg h4 { margin: 0 0 8px; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--chip-suave); font-weight: 500; }
+.dbg-fila { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 3px 0; border-bottom: 1px solid rgba(127, 140, 130, 0.25); }
+.dbg-fila:last-child { border-bottom: 0; }
+.dbg-fila .v { font-variant-numeric: tabular-nums; text-align: right; }
+.dbg-fila .v.cambio { color: var(--alto); font-weight: 600; }
+.led { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: var(--led-off); vertical-align: -1px; margin-right: 6px; }
+.led.azul.on { background: #3aa0ff; box-shadow: 0 0 8px #3aa0ff; }
+.led.verde.on { background: #2ee05c; box-shadow: 0 0 8px #2ee05c; }
+.led.rojo.on { background: #ff3030; box-shadow: 0 0 10px #ff3030; }
+.led.naranjo.on { background: #ff8a1f; box-shadow: 0 0 8px #ff8a1f; }
+.contadores { font-family: var(--f-mono); font-size: 0.82rem; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.onda-env { overflow-x: auto; margin-top: 14px; }
+.onda text { font-family: var(--f-mono); font-size: 10px; fill: var(--tinta-suave); }
+.onda .traza { fill: none; stroke: var(--alto); stroke-width: 2; }
+.onda .traza.reloj { stroke: var(--tinta); }
+.onda .traza.esc { stroke: var(--aviso); }
+.onda .traza.led8 { stroke: #e03030; }
+.onda .guia { stroke: var(--linea); stroke-width: 1; }
+.onda .ahora { stroke: var(--bus); stroke-width: 1.5; stroke-dasharray: 3 3; }
+
+/* ---------- widget: camino de datos */
+.dp-env { overflow-x: auto; }
+.dp { display: block; width: 100%; min-width: 760px; height: auto; }
+.dp .blk { fill: var(--superficie); stroke: var(--cable); stroke-width: 1.5; }
+.dp .blk.on { fill: var(--alto-suave); stroke: var(--alto); stroke-width: 2.2; }
+.dp .bus { fill: var(--bus-suave); stroke: var(--bus); stroke-width: 1.5; }
+.dp .w { fill: none; stroke: var(--cable); stroke-width: 2; stroke-linejoin: round; }
+.dp .w.on { stroke: var(--alto); stroke-width: 3.6; }
+.dp text { font-family: var(--f-texto); fill: var(--tinta); font-size: 13px; }
+.dp text.n { font-weight: 600; font-size: 14px; }
+.dp text.l { font-family: var(--f-mono); font-size: 9.5px; fill: var(--tinta-suave); }
+.dp text.wl { font-family: var(--f-mono); font-size: 10px; fill: var(--tinta-suave); }
+.dp text.bt { font-family: var(--f-mono); font-size: 12px; fill: var(--bus); font-weight: 500; }
+
+/* ---------- widget: sumador */
+.bits { display: grid; grid-template-columns: 2.6rem repeat(8, minmax(0, 1fr)) 5.5rem; gap: 6px; align-items: center; margin-bottom: 6px; }
+.bits .nom { font-family: var(--f-mono); font-weight: 600; }
+.bits .dec { font-family: var(--f-mono); font-size: 0.82rem; color: var(--tinta-suave); text-align: right; font-variant-numeric: tabular-nums; }
+.bit {
+  font-family: var(--f-mono); font-size: 1.05rem; font-weight: 600; padding: 6px 0; cursor: pointer; border-radius: 3px;
+  background: var(--superficie); color: var(--bajo); border: 1px solid var(--cable); min-width: 0;
+}
+.bit[aria-pressed="true"] { background: var(--alto); color: var(--fondo); border-color: var(--alto); }
+.fas { display: grid; grid-template-columns: 2.6rem repeat(8, minmax(0, 1fr)) 5.5rem; gap: 6px; margin-top: 12px; }
+.fa {
+  border: 1px solid var(--linea); padding: 6px 2px; text-align: center; font-family: var(--f-mono); font-size: 0.72rem;
+  color: var(--tinta-suave); position: relative; min-width: 0;
+}
+.fa .s { display: block; font-size: 1.1rem; font-weight: 600; color: var(--tinta); }
+.fa .c { display: block; }
+.fa.c1 { border-color: var(--alto); }
+.fa.c1 .c { color: var(--alto); font-weight: 600; }
+.fa.ondea { background: var(--alto-suave); }
+.resultado { margin-top: 12px; font-family: var(--f-mono); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 6px 22px; font-variant-numeric: tabular-nums; }
+.resultado b { font-weight: 600; }
+.chk { display: inline-flex; gap: 8px; align-items: center; font-size: 0.92rem; cursor: pointer; }
+.chk input { width: 18px; height: 18px; accent-color: var(--alto); }
+@media (max-width: 560px) {
+  .bits, .fas { grid-template-columns: 1.6rem repeat(8, minmax(0, 1fr)); }
+  .bits .dec, .fas .dec { grid-column: 1 / -1; text-align: left; }
+  .bit { font-size: 0.9rem; }
+}
+
+/* ---------- widget: decodificador */
+.deco-entrada { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.deco-entrada label { font-weight: 500; }
+.deco-entrada input {
+  font-family: var(--f-mono); font-size: 1.05rem; padding: 7px 10px; width: 11ch; border: 1px solid var(--cable);
+  background: var(--superficie); color: var(--tinta); border-radius: 3px;
+}
+.ejemplos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ejemplos button { font-family: var(--f-mono); font-size: 0.78rem; padding: 3px 8px; background: var(--panel); border: 1px solid var(--linea); color: var(--tinta); cursor: pointer; border-radius: 3px; }
+.ejemplos button:hover { border-color: var(--alto); }
+.deco-asm { font-family: var(--f-mono); font-size: 1.35rem; font-weight: 600; margin: 16px 0 4px; overflow-wrap: anywhere; }
+.deco-exp { margin: 0 0 12px; color: var(--tinta-suave); }
+.campos-env { overflow-x: auto; }
+.campos { display: flex; min-width: 560px; font-family: var(--f-mono); font-size: 0.76rem; }
+.campo { border: 1px solid var(--linea); border-right: 0; padding: 5px 4px; text-align: center; min-width: 0; }
+.campo:last-child { border-right: 1px solid var(--linea); }
+.campo .r { color: var(--tinta-suave); font-size: 0.68rem; display: block; }
+.campo .b { display: block; letter-spacing: 0.06em; font-weight: 500; word-break: break-all; }
+.campo .nn { display: block; color: var(--alto); font-weight: 600; }
+.campo.op { background: var(--panel); }
+.campo.reg { background: var(--bus-suave); }
+.campo.imm { background: var(--aviso-suave); }
+.error { color: var(--aviso); }
+
+/* ---------- formatos */
+.formatos { font-family: var(--f-mono); font-size: 0.74rem; min-width: 640px; border-collapse: collapse; }
+.formatos td, .formatos th { border: 1px solid var(--linea); text-align: center; padding: 5px 4px; }
+.formatos th { font-size: 0.68rem; }
+.formatos td.f { font-weight: 600; text-align: left; padding-left: 8px; }
+.formatos td.o { background: var(--panel); }
+.formatos td.r { background: var(--bus-suave); }
+.formatos td.i { background: var(--aviso-suave); }
+
+/* ---------- experimentos */
+.experimentos { list-style: none; padding: 0; margin: 18px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+.experimentos li { background: var(--superficie); border: 1px solid var(--linea); padding: 14px 16px; max-width: none; }
+.experimentos h4 { margin: 0 0 6px; font-size: 1rem; font-family: var(--f-texto); font-weight: 600; }
+.experimentos p { margin: 0 0 6px; font-size: 0.93rem; }
+.experimentos .prog-ej { font-family: var(--f-mono); font-size: 0.75rem; color: var(--tinta-suave); }
+
+.pie { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--linea); font-size: 0.88rem; color: var(--tinta-suave); }
+.pie p { margin: 4px 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="contenedor">
+
+<header class="cabecera">
+  <p class="antetitulo">Guide to the Logisim Evolution model · version 0.2</p>
+  <h1>Inside the ESP32-C3</h1>
+  <p class="entrada">A tour of the chip running in your Logisim: from the clock pulse to the LED, through the RISC-V CPU, every addition in the ALU, the bus, interrupts and transistors. Each section tells you where to look in the circuit to watch it work.</p>
+  <ol class="ruta" aria-label="Levels of the model">
+    <li><a href="#codigo">Program</a></li>
+    <li><a href="#niveles">Board</a></li>
+    <li><a href="#bus">Chip</a></li>
+    <li><a href="#cpu">CPU</a></li>
+    <li><a href="#suma">ALU</a></li>
+    <li><a href="#suma">Adder</a></li>
+    <li><a href="#suma">Gate</a></li>
+    <li><a href="#transistores">Transistor</a></li>
+  </ol>
+  <p class="ruta-nota">It is the same path you follow in Logisim by double-clicking in the <b>Simulate</b> tab: PlacaDevKit › U1 › CPU › U_ALU › SUMADOR › FA0. (Circuit and signal names inside the model are in Spanish; this guide gives their meaning.)</p>
+</header>
+
+<nav class="indice" aria-label="Contents">
+  <h2>Tour</h2>
+  <ol>
+    <li><a href="#empezar">Before you start</a></li>
+    <li><a href="#niveles">The levels: from program to transistor</a></li>
+    <li><a href="#reloj">The clock and the CPU phases</a></li>
+    <li><a href="#cpu">Inside the CPU</a></li>
+    <li><a href="#suma">Every addition: the ALU and the adder</a></li>
+    <li><a href="#instrucciones">Reading instructions</a></li>
+    <li><a href="#bus">The bus and the memory map</a></li>
+    <li><a href="#gpio">A signal's journey to the GPIO</a></li>
+    <li><a href="#interrupciones">Interrupts</a></li>
+    <li><a href="#perifericos">The peripherals</a></li>
+    <li><a href="#codigo">From code to chip: Arduino and ESP-IDF</a></li>
+    <li><a href="#transistores">The transistor lab</a></li>
+    <li><a href="#experimentos">Experiments to try</a></li>
+    <li><a href="#real">How it compares to the real chip</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ 1 -->
+<section id="empezar">
+  <div class="sec-cabeza"><span class="sec-num">01</span><h2>Before you start</h2></div>
+  <p>Open <code>ESP32C3_Logisim.circ</code> in Logisim Evolution and press <kbd>Ctrl</kbd>+<kbd>K</kbd>. The clock starts running, the boot ROM writes to the board's terminal and then the program stored in FLASH starts.</p>
+
+  <h3>What's in the folder</h3>
+  <div class="tabla-env"><table>
+    <tr><th>File</th><th>What it's for</th></tr>
+    <tr><td class="mono">ESP32C3_Logisim.circ</td><td>The board with the chip. The ALU adds with logic gates. Start here.</td></tr>
+    <tr><td class="mono">ESP32C3_Logisim_ALU_transistores.circ</td><td>Same, but the ALU adder is built from transistors (32 × 28 = 896). A bit slower.</td></tr>
+    <tr><td class="mono">programas/</td><td>Precompiled examples (<code>.hex</code>) in C, Arduino and ESP-IDF style, ready to load into FLASH.</td></tr>
+    <tr><td class="mono">sdk/</td><td>To compile your own programs: <code>compilar.py</code>, the Arduino and ESP-IDF layers and the source code of every example.</td></tr>
+    <tr><td class="mono">verificacion/</td><td>The official RISC-V test suite (<code>riscv-tests</code>) adapted to run on the model.</td></tr>
+    <tr><td class="mono">GUIDE.html</td><td>This guide (opens in the browser, works offline). <code>GUIA.html</code> is the Spanish version.</td></tr>
+  </table></div>
+
+  <h3>The shortcuts you'll use</h3>
+  <div class="tabla-env"><table>
+    <tr><th>Shortcut</th><th>Simulate menu</th><th>What it does</th></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd></td><td>Auto-Tick Enabled</td><td>The clock runs by itself and the chip works. Another <kbd>Ctrl</kbd>+<kbd>K</kbd> stops it.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>Tick Half Cycle</td><td>One clock edge (rising or falling). Twice = one full cycle.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F9</kbd></td><td>Tick Full Cycle</td><td>Advances one whole cycle.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Simulation Enabled</td><td>When disabled, signals stop propagating on their own after each change.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Step Simulation</td><td>With simulation disabled, advances one propagation step: signals cross one more gate.</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Reset Simulation</td><td>Everything goes back to zero, like unplugging the board.</td></tr>
+    <tr><td>—</td><td>Timing Diagram</td><td>Plots signals over time: the clock, the LEDs, registers.</td></tr>
+    <tr><td>—</td><td>Auto-Tick Frequency</td><td>How fast the clock runs with <kbd>Ctrl</kbd>+<kbd>K</kbd>. If the chip feels slow, pick the highest: the real limit is your computer.</td></tr>
+  </table></div>
+
+  <h3>Three places to look</h3>
+  <div class="logisim">
+    <span class="etq">Panel</span>
+    <div><p>To the right of the chip, on the board: the <b>debug panel</b>. It shows the PC, the CPU phase, the instruction, the last ALU operation, what's on the bus, and the cycle and instruction counters.</p></div>
+    <span class="etq">State</span>
+    <div><p>Bottom left, next to <b>Properties</b>: the <b>State</b> tab lists the CPU registers live (<code>x01_ra</code> … <code>x31_t6</code>), the IR, the phase and the CSRs.</p></div>
+    <span class="etq">Simulate</span>
+    <div><p>Top left: the tree of the running simulation. Double-click <b>PlacaDevKit › U1 › CPU › …</b> to step into any block while it runs.</p>
+    <p>Careful: if you double-click a circuit in the <b>Design</b> tab, Logisim simulates that circuit alone, without the board or the clock. To look inside without stopping anything, always use <b>Simulate</b>.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="niveles">
+  <div class="sec-cabeza"><span class="sec-num">02</span><h2>The levels: from program to transistor</h2></div>
+  <p>A computer is understood in levels. Each level uses parts from the level below without caring how they are made: the CPU uses adders, the adder uses gates and the gate uses transistors. The model has every level and you can go down from one to the next with a double-click.</p>
+  <ul class="niveles">
+    <li><span class="nv">Program<small>contents of the FLASH ROM</small></span><p>Your code in C, Arduino or ESP-IDF style, translated by the compiler into 16- and 32-bit RISC-V instructions. It's the <code>.hex</code> file.</p></li>
+    <li><span class="nv">Board<small>PlacaDevKit</small></span><p>The crystal (XTAL clock), the RESET and BOOT buttons, an LED on every GPIO, the terminal with its keyboard, the I2C memory and the 74HC595 shift register.</p></li>
+    <li><span class="nv">Chip<small>ESP32C3 · U1</small></span><p>The CPU, the system bus, the boot ROM, FLASH, SRAM and the peripherals (GPIO, UART, timers, PWM, SPI, I2C).</p></li>
+    <li><span class="nv">CPU<small>CPU_RV32IMC</small></span><p>The program counter, the instruction register, the decoder, the 32 registers, the ALU and the control registers.</p></li>
+    <li><span class="nv">Blocks<small>Sumador32, BancoRegistros…</small></span><p>Adders, multiplexers, decoders, FIFO queues: parts built from gates and flip-flops.</p></li>
+    <li><span class="nv">Gates<small>SumadorCompleto</small></span><p>AND, OR, XOR and NOT. A flip-flop stores 1 bit; a 32-bit register is 32 flip-flops sharing a clock.</p></li>
+    <li><span class="nv">Transistors<small>LaboratorioTransistores</small></span><p>CMOS gates built from P and N transistors, a 28-transistor adder, flip-flops and a counter.</p></li>
+  </ul>
+  <p>So that simulation doesn't take forever, the model uses some components that ship with Logisim (registers, memories, the multiplier) instead of building them gate by gate. The ALU adder is built by hand from gates, and in the other file from transistors, because every addition the CPU makes goes through it.</p>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="reloj">
+  <div class="sec-cabeza"><span class="sec-num">03</span><h2>The clock and the CPU phases</h2>
+    <span class="donde"><b>PlacaDevKit</b> › XTAL · BUSCANDO (fetching) / EJECUTANDO (executing) LEDs on the panel</span></div>
+  <p>The board's <b>XTAL</b> component is the crystal: a signal that rises and falls nonstop. The whole chip is ordered by it following one rule:</p>
+  <ul>
+    <li><b>On the rising edge</b> (when the clock goes from 0 to 1), every register copies what is at its input. It's the only moment anything is stored.</li>
+    <li><b>Between one edge and the next</b>, combinational logic (gates, adders, multiplexers) computes the new values from what is stored. Signals travel through the gates one after another until they settle.</li>
+  </ul>
+  <p>In a real chip that trip takes a few nanoseconds and sets the maximum frequency: the longest path, the <b>critical path</b>, has to finish before the next edge. In Logisim, every time the clock changes the simulator propagates signals until they settle. If you disable simulation with <kbd>Ctrl</kbd>+<kbd>E</kbd>, you can watch that propagation step by step with <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p>
+  <p>The model's CPU is <b>multicycle</b>: it runs each instruction in phases, one per clock cycle.</p>
+  <div class="tabla-env"><table>
+    <tr><th>Phase</th><th>Panel LED</th><th>What happens</th></tr>
+    <tr><td><b>BUSCA</b> (fetch)</td><td><span class="led azul on"></span>BUSCANDO</td><td>The PC goes out on the bus and memory answers with the instruction. On the edge, the IR stores it.</td></tr>
+    <tr><td><b>EJECUTA</b> (execute)</td><td><span class="led verde on"></span>EJECUTANDO</td><td>Decodes, reads the registers, computes in the ALU or uses the bus to read or write data. On the edge it stores the result and updates the PC.</td></tr>
+    <tr><td><b>BUSCA2</b> (fetch 2)</td><td><span class="led azul on"></span>BUSCANDO</td><td>Only sometimes: when a 32-bit instruction is split across two memory words, a second read is needed.</td></tr>
+  </table></div>
+  <p>That's why the panel shows a little more than twice as many cycles as instructions: about 2.2 cycles per instruction.</p>
+
+  <div class="widget" id="w-pap">
+    <div class="widget-cabeza">
+      <div><h3>Step by step: a blinking LED</h3>
+      <p class="sub">Six instructions that turn GPIO8 on and off by writing straight into the GPIO registers. Each click is a <kbd>Ctrl</kbd>+<kbd>T</kbd>.</p></div>
+      <span class="contadores" id="pap-cont">cycles 0 · instructions 0</span>
+    </div>
+    <div class="botones">
+      <button class="btn primario" id="pap-medio">Half cycle <span class="k">Ctrl+T</span></button>
+      <button class="btn" id="pap-ciclo">Full cycle <span class="k">Ctrl+F9</span></button>
+      <button class="btn" id="pap-reset">Reset <span class="k">Ctrl+R</span></button>
+    </div>
+    <div class="pap" style="margin-top:14px">
+      <div style="overflow-x:auto"><table class="prog" id="pap-prog" aria-label="Program"></table></div>
+      <div class="dbg" aria-label="Debug panel">
+        <h4>Debug panel</h4>
+        <div id="pap-dbg"></div>
+      </div>
+    </div>
+    <div class="onda-env"><svg class="onda" id="pap-onda" viewBox="0 0 640 150" width="640" height="150" role="img" aria-label="Timing diagram of the signals"></svg></div>
+    <p class="mensaje" id="pap-msg" aria-live="polite"></p>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="cpu">
+  <div class="sec-cabeza"><span class="sec-num">04</span><h2>Inside the CPU</h2>
+    <span class="donde"><b>PlacaDevKit</b> › U1 › <b>CPU</b> (CPU_RV32IMC)</span></div>
+  <p>The CPU executes the <b>RISC-V RV32IMC</b> instruction set, the same as the real ESP32-C3. <b>RV32I</b> is about forty basic 32-bit instructions: add, compare, branch, load and store. <b>M</b> adds multiply and divide. <b>C</b> adds 16-bit compressed versions of the most common instructions, so programs take less space.</p>
+  <p>It has 32 registers of 32 bits, <code>x0</code> to <code>x31</code>. <code>x0</code> is always 0. The others are named after how the compiler uses them: <code>ra</code> holds the return address, <code>sp</code> points to the stack, <code>a0</code>–<code>a7</code> carry function arguments and results, <code>t0</code>–<code>t6</code> are temporaries and <code>s0</code>–<code>s11</code> are preserved across calls. In the State tab you see them as <code>x01_ra</code>, <code>x02_sp</code>, etc.</p>
+  <p>It's a <b>load/store</b> architecture: the ALU only works on registers. To use a value from memory you first load it with <code>lw</code>, and to store it, <code>sw</code>.</p>
+
+  <div class="widget" id="w-dp">
+    <div class="widget-cabeza">
+      <div><h3>The datapath</h3>
+      <p class="sub">Pick an instruction: the blocks and wires it uses during its phase light up in green.</p></div>
+    </div>
+    <div class="botones" id="dp-botones" role="group" aria-label="Instruction"></div>
+    <div class="dp-env" style="margin-top:12px">
+      <svg class="dp" id="dp" viewBox="0 0 980 470" role="img" aria-label="CPU datapath">
+        <!-- bus -->
+        <rect class="bus" x="20" y="14" width="940" height="40" rx="3"/>
+        <text class="bt" x="490" y="39" text-anchor="middle">SYSTEM BUS  ·  ROM · FLASH · SRAM · peripherals</text>
+        <!-- wires -->
+        <path class="w" id="w-pc_bus" d="M72,150 V54"/>
+        <path class="w" id="w-bus_ir" d="M211,54 V84 M211,116 V150"/>
+        <path class="w" id="w-ir_dec" d="M246,165 H268 V114 H290"/>
+        <path class="w" id="w-ir_regs" d="M246,180 H460"/>
+        <path class="w" id="w-ir_imm" d="M246,195 H268 V318 H290"/>
+        <path class="w" id="w-r1_alu" d="M590,150 H664 V130 H680"/>
+        <path class="w" id="w-r2_mux" d="M590,236 H630"/>
+        <path class="w" id="w-imm_mux" d="M420,306 H612 V272 H630"/>
+        <path class="w" id="w-mux_alu" d="M656,248 H668 V230 H680"/>
+        <path class="w" id="w-alu_wb" d="M760,180 H890"/>
+        <path class="w" id="w-wb_regs" d="M905,300 V448 H440 V290 H460"/>
+        <path class="w" id="w-r1_agu" d="M600,150 V306 H680"/>
+        <path class="w" id="w-imm_agu" d="M420,326 H680"/>
+        <path class="w" id="w-agu_lsu" d="M760,316 H780"/>
+        <path class="w" id="w-lsu_bus" d="M870,316 H950 V54"/>
+        <path class="w" id="w-r2_lsu" d="M620,236 V420 H825 V336"/>
+        <path class="w" id="w-lsu_wb" d="M825,296 V270 H890"/>
+        <path class="w" id="w-md_wb" d="M870,86 H905 V120"/>
+        <path class="w" id="w-r1_cmp" d="M600,306 V376 H680"/>
+        <path class="w" id="w-r2_cmp" d="M620,392 H680"/>
+        <path class="w" id="w-cmp_pcn" d="M720,402 V436 H115 V360"/>
+        <path class="w" id="w-imm_pcn" d="M330,344 V350 H190"/>
+        <path class="w" id="w-pc_pcn" d="M40,180 H26 V325 H40"/>
+        <path class="w" id="w-pcn_pc" d="M72,290 V210"/>
+        <path class="w" id="w-link_wb" d="M60,360 V458 H936 V240 H920"/>
+        <!-- blocks -->
+        <rect class="blk" id="b-PC" x="40" y="150" width="64" height="60" rx="3"/>
+        <text class="n" x="72" y="185" text-anchor="middle">PC</text>
+        <rect class="blk" id="b-RVC" x="176" y="84" width="70" height="32" rx="3"/>
+        <text x="211" y="105" text-anchor="middle">RVC</text>
+        <rect class="blk" id="b-IR" x="176" y="150" width="70" height="60" rx="3"/>
+        <text class="n" x="211" y="185" text-anchor="middle">IR</text>
+        <rect class="blk" id="b-DEC" x="290" y="92" width="130" height="44" rx="3"/>
+        <text class="n" x="355" y="113" text-anchor="middle">Decoder</text>
+        <text class="l" x="355" y="128" text-anchor="middle">DEC</text>
+        <rect class="blk" id="b-IMM" x="290" y="292" width="130" height="52" rx="3"/>
+        <text class="n" x="355" y="315" text-anchor="middle">Immediate</text>
+        <text class="l" x="355" y="331" text-anchor="middle">IMM</text>
+        <rect class="blk" id="b-REGS" x="460" y="120" width="130" height="190" rx="3"/>
+        <text class="n" x="525" y="205" text-anchor="middle">Registers</text>
+        <text x="525" y="224" text-anchor="middle">x0 … x31</text>
+        <text class="l" x="525" y="240" text-anchor="middle">REGS</text>
+        <text class="l" x="584" y="146" text-anchor="end">rs1</text>
+        <text class="l" x="584" y="232" text-anchor="end">rs2</text>
+        <text class="l" x="466" y="286">rd</text>
+        <rect class="blk" id="b-MUXB" x="630" y="212" width="26" height="72" rx="3"/>
+        <polygon class="blk" id="b-ALU" points="680,110 760,146 760,214 680,250 680,192 694,180 680,168"/>
+        <text class="n" x="728" y="184" text-anchor="middle">ALU</text>
+        <text class="l" x="728" y="200" text-anchor="middle">U_ALU</text>
+        <rect class="blk" id="b-AGU" x="680" y="296" width="80" height="40" rx="3"/>
+        <text x="720" y="315" text-anchor="middle">+ address</text>
+        <text class="l" x="720" y="329" text-anchor="middle">dir_datos</text>
+        <rect class="blk" id="b-CMP" x="680" y="366" width="80" height="36" rx="3"/>
+        <text x="720" y="388" text-anchor="middle">branch?</text>
+        <rect class="blk" id="b-MD" x="780" y="70" width="90" height="32" rx="3"/>
+        <text x="825" y="91" text-anchor="middle">Mul/Div · CSR</text>
+        <rect class="blk" id="b-LSU" x="780" y="296" width="90" height="40" rx="3"/>
+        <text x="825" y="315" text-anchor="middle">Load/Store</text>
+        <text class="l" x="825" y="329" text-anchor="middle">LSU</text>
+        <rect class="blk" id="b-WB" x="890" y="120" width="30" height="180" rx="3"/>
+        <text class="l" x="905" y="214" text-anchor="middle">WB</text>
+        <rect class="blk" id="b-PCN" x="40" y="290" width="150" height="70" rx="3"/>
+        <text class="n" x="115" y="316" text-anchor="middle">Next PC</text>
+        <text class="l" x="115" y="333" text-anchor="middle">PC+4 · PC+offset</text>
+        <text class="l" x="115" y="346" text-anchor="middle">rs1+offset · vector</text>
+        <!-- wire labels -->
+        <text class="wl" x="80" y="72">address</text>
+        <text class="wl" x="219" y="72">instruction</text>
+        <text class="wl" x="330" y="174">rs1 rs2 rd</text>
+        <text class="wl" x="776" y="174">result</text>
+        <text class="wl" x="878" y="44" text-anchor="end" style="fill:var(--bus)">address · data</text>
+        <text class="wl" x="680" y="452">value for rd</text>
+        <text class="wl" x="300" y="430">condition true?</text>
+        <text class="wl" x="200" y="472" dy="-6">PC+4 (link in jal)</text>
+      </svg>
+    </div>
+    <p class="mensaje" id="dp-msg" aria-live="polite"></p>
+  </div>
+
+  <h3>The blocks, with their names in Logisim</h3>
+  <div class="tabla-env"><table>
+    <tr><th>Block</th><th>In Logisim</th><th>What it does</th></tr>
+    <tr><td>Program counter</td><td class="mono">PC</td><td>Address of the current instruction. At power-on it is <code>0x40000000</code>: the boot ROM.</td></tr>
+    <tr><td>RVC expander</td><td class="mono">RVC (ExpansorRVC)</td><td>If the instruction is compressed (16 bits), converts it to its 32-bit equivalent. That way the rest of the CPU only knows 32-bit instructions.</td></tr>
+    <tr><td>Instruction register</td><td class="mono">IR[15:0], IR[31:16]</td><td>Holds the instruction while it executes.</td></tr>
+    <tr><td>Decoder</td><td class="mono">DEC</td><td>Looks at the opcode and the <code>funct3</code> and <code>funct7</code> fields and raises the control signals: <code>d_LOAD</code>, <code>d_STORE</code>, <code>d_BRANCH</code>, <code>d_ALUOP</code>… Pure combinational logic.</td></tr>
+    <tr><td>Immediate generator</td><td class="mono">IMM</td><td>Builds the constant carried inside the instruction (the immediate), sign-extended, according to the format (I, S, B, U or J).</td></tr>
+    <tr><td>Register file</td><td class="mono">REGS</td><td>31 registers of 32 bits plus <code>x0</code>. Two are read at once (<code>rs1</code>, <code>rs2</code>) and one is written (<code>rd</code>) on the edge.</td></tr>
+    <tr><td>ALU</td><td class="mono">U_ALU</td><td>Adds, subtracts, shifts, compares and does AND, OR and XOR.</td></tr>
+    <tr><td>Address adder</td><td class="mono">dir_datos</td><td>Computes <code>rs1 + offset</code> for <code>lw</code> and <code>sw</code>.</td></tr>
+    <tr><td>Load/store unit</td><td class="mono">LSU</td><td>Aligns bytes and halfwords (<code>lb</code>, <code>sh</code>…) and detects misaligned addresses.</td></tr>
+    <tr><td>Multiply and divide</td><td class="mono">MULDIV</td><td>M instructions (<code>mul</code>, <code>div</code>, <code>rem</code>) in a single cycle.</td></tr>
+    <tr><td>Control registers</td><td class="mono">CSR</td><td><code>mstatus</code>, <code>mtvec</code>, <code>mepc</code>, <code>mcause</code>, <code>mie</code>, <code>mcycle</code>, <code>minstret</code>: interrupts, exceptions and counters.</td></tr>
+    <tr><td>State machine</td><td class="mono">ESTADO</td><td>0 = fetch, 1 = fetch 2, 2 = execute, 3 = halted (by <code>ebreak</code> with DBG = 1).</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="suma">
+  <div class="sec-cabeza"><span class="sec-num">05</span><h2>Every addition: the ALU and the adder</h2>
+    <span class="donde"><b>U1</b> › CPU › U_ALU › <b>SUMADOR</b> (adder) › FA0 … FA31</span></div>
+  <p>Almost everything the CPU does ends in an addition: <code>add</code> and <code>addi</code>, but also <code>sub</code> (A + not B + 1), the <code>slt</code> comparisons (subtract and look at the sign) and the computation of every address. The ALU has a 32-bit adder made of 32 full adders in a row.</p>
+  <p>A full adder adds three bits (a, b and the incoming carry) and outputs the sum and the outgoing carry:</p>
+  <div class="formula">s = a ⊕ b ⊕ c<sub>in</sub><br>c<sub>out</sub> = a·b + c<sub>in</sub>·(a ⊕ b)</div>
+  <p>Each bit's carry is the next one's input, so in the worst case the signal crosses all 32 adders one after another. This is a <b>ripple-carry adder</b>: simple but slow, and often the critical path of a simple CPU. Fast processors use carry-lookahead adders, which compute the carries in parallel.</p>
+
+  <div class="widget" id="w-sum">
+    <div class="widget-cabeza">
+      <div><h3>An 8-bit adder</h3>
+      <p class="sub">Click the bits. Each box below is a full adder; the carry travels from right to left.</p></div>
+      <label class="chk"><input type="checkbox" id="sum-resta"> Subtract (A − B)</label>
+    </div>
+    <div id="sum-bits"></div>
+    <div class="fas" id="sum-fas"></div>
+    <div class="resultado" id="sum-res"></div>
+  </div>
+
+  <p>In the debug panel, the rows <b>ALU: A</b>, <b>operation</b>, <b>B</b> and <b>result</b> show the CPU's last operation. The operation is a number:</p>
+  <div class="tabla-env"><table>
+    <tr><th>Operation</th><th>What it computes</th><th>Instructions</th></tr>
+    <tr><td class="mono">0</td><td>A + B</td><td><code>add</code>, <code>addi</code>, <code>lui</code>, <code>auipc</code>, <code>jalr</code>; for <code>lw</code>/<code>sw</code> the panel shows the address sum</td></tr>
+    <tr><td class="mono">8</td><td>A − B</td><td><code>sub</code></td></tr>
+    <tr><td class="mono">1</td><td>A shifted left by B bits</td><td><code>sll</code>, <code>slli</code></td></tr>
+    <tr><td class="mono">5 / D</td><td>A shifted right (D: keeping the sign)</td><td><code>srl</code>, <code>srli</code> / <code>sra</code>, <code>srai</code></td></tr>
+    <tr><td class="mono">2 / 3</td><td>1 if A &lt; B (signed / unsigned)</td><td><code>slt</code>, <code>slti</code> / <code>sltu</code>, <code>sltiu</code></td></tr>
+    <tr><td class="mono">4 / 6 / 7</td><td>A XOR B / A OR B / A AND B</td><td><code>xor</code>, <code>or</code>, <code>and</code> and their <code>i</code> versions</td></tr>
+  </table></div>
+
+  <div class="logisim">
+    <span class="etq">Watch it</span>
+    <div><p>Stop the clock (<kbd>Ctrl</kbd>+<kbd>K</kbd>), disable simulation (<kbd>Ctrl</kbd>+<kbd>E</kbd>) and in the <b>Simulate</b> tab go into PlacaDevKit › U1 › CPU › U_ALU › SUMADOR. Press <kbd>Ctrl</kbd>+<kbd>T</kbd> and then <kbd>Ctrl</kbd>+<kbd>I</kbd> several times: you'll see the values arrive and the carry move from FA0 towards FA31. When you're done, enable simulation again with <kbd>Ctrl</kbd>+<kbd>E</kbd>.</p>
+    <p>In <code>ESP32C3_Logisim_ALU_transistores.circ</code> each FA is a 28-transistor <b>SumadorCompletoCMOS</b>: you can go one level deeper.</p></div>
+  </div>
+  <p>The CPU's other adders (PC + 4, the branch target and the address adder) use Logisim's built-in adder, so the simulation runs faster.</p>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="instrucciones">
+  <div class="sec-cabeza"><span class="sec-num">06</span><h2>Reading instructions</h2>
+    <span class="donde">debug panel › row <b>instrucción (IR)</b></span></div>
+  <p>Every 32-bit RISC-V instruction is split into fields. The low 7 bits (the <b>opcode</b>) say what kind of instruction it is, and depending on the kind the rest is shared between registers (<code>rd</code>, <code>rs1</code>, <code>rs2</code>), variants (<code>funct3</code>, <code>funct7</code>) and the immediate. Registers are always in the same place: that's why the register file can start reading before the decoder finishes.</p>
+  <div class="tabla-env"><table class="formatos">
+    <tr><th>format</th><th>31 … 25</th><th>24 … 20</th><th>19 … 15</th><th>14 … 12</th><th>11 … 7</th><th>6 … 0</th></tr>
+    <tr><td class="f">R (add)</td><td>funct7</td><td class="r">rs2</td><td class="r">rs1</td><td>funct3</td><td class="r">rd</td><td class="o">opcode</td></tr>
+    <tr><td class="f">I (addi, lw)</td><td class="i" colspan="2">immediate [11:0]</td><td class="r">rs1</td><td>funct3</td><td class="r">rd</td><td class="o">opcode</td></tr>
+    <tr><td class="f">S (sw)</td><td class="i">imm [11:5]</td><td class="r">rs2</td><td class="r">rs1</td><td>funct3</td><td class="i">imm [4:0]</td><td class="o">opcode</td></tr>
+    <tr><td class="f">B (beq)</td><td class="i">imm [12|10:5]</td><td class="r">rs2</td><td class="r">rs1</td><td>funct3</td><td class="i">imm [4:1|11]</td><td class="o">opcode</td></tr>
+    <tr><td class="f">U (lui)</td><td class="i" colspan="4">immediate [31:12]</td><td class="r">rd</td><td class="o">opcode</td></tr>
+    <tr><td class="f">J (jal)</td><td class="i" colspan="4">immediate [20|10:1|11|19:12]</td><td class="r">rd</td><td class="o">opcode</td></tr>
+  </table></div>
+
+  <div class="widget" id="w-deco">
+    <div class="widget-cabeza">
+      <div><h3>Instruction decoder</h3>
+      <p class="sub">Copy the value from the panel's "instrucción (IR)" row. Compressed instructions arrive already expanded to 32 bits.</p></div>
+    </div>
+    <form class="deco-entrada" id="deco-form">
+      <label for="deco-in">IR =</label>
+      <input id="deco-in" value="00b52423" maxlength="10" spellcheck="false" autocomplete="off" inputmode="text">
+      <button class="btn primario" type="submit">Decode</button>
+    </form>
+    <div class="ejemplos" id="deco-ej" aria-label="Examples"></div>
+    <p class="deco-asm" id="deco-asm"></p>
+    <p class="deco-exp" id="deco-exp"></p>
+    <div class="campos-env"><div class="campos" id="deco-campos"></div></div>
+  </div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section id="bus">
+  <div class="sec-cabeza"><span class="sec-num">07</span><h2>The bus and the memory map</h2>
+    <span class="donde"><b>U1</b> › BUS (BusSistema) · LECTURA (MuxLectura, read mux) · APB</span></div>
+  <p>The CPU has a single bus. In the fetch phase it uses it to read instructions and in execute to read or write data. Each 32-bit address points somewhere different: the <b>address decoder</b> looks at the high bits and raises a single <code>sel_…</code> signal; the <b>read multiplexer</b> lets only the selected device's data through to the CPU.</p>
+  <div class="tabla-env"><table>
+    <tr><th>Address</th><th>What's there</th><th>In the model</th></tr>
+    <tr class="grupo"><td colspan="3">Memories</td></tr>
+    <tr><td class="mono">4000 0000</td><td>Boot ROM: the first code that runs</td><td>16 KB · <span class="mono">ROM_ARRANQUE</span></td></tr>
+    <tr><td class="mono">4200 0000</td><td>FLASH seen as code</td><td>1 MB · <span class="mono">FLASH</span></td></tr>
+    <tr><td class="mono">3C00 0000</td><td>The same FLASH seen as data (strings, constants)</td><td></td></tr>
+    <tr><td class="mono">3FC8 0000</td><td>SRAM: variables, stack and heap</td><td>384 KB · <span class="mono">SRAM</span></td></tr>
+    <tr><td class="mono">4038 0000</td><td>The same SRAM seen from the instruction side</td><td></td></tr>
+    <tr><td class="mono">5000 0000</td><td>RTC fast memory</td><td>8 KB · <span class="mono">RTC_FAST</span></td></tr>
+    <tr class="grupo"><td colspan="3">Peripherals</td></tr>
+    <tr><td class="mono">6000 0000</td><td>UART0: the console</td><td></td></tr>
+    <tr><td class="mono">6000 4000</td><td>GPIO</td><td></td></tr>
+    <tr><td class="mono">6000 8000</td><td>RTC_CNTL: reset reason, RTC watchdog</td><td></td></tr>
+    <tr><td class="mono">6000 8800</td><td>eFuse: the MAC address</td><td></td></tr>
+    <tr><td class="mono">6000 9000</td><td>IO MUX: each pin's function</td><td></td></tr>
+    <tr><td class="mono">6001 0000</td><td>UART1</td><td></td></tr>
+    <tr><td class="mono">6001 3000</td><td>I2C</td><td></td></tr>
+    <tr><td class="mono">6001 9000</td><td>LEDC: PWM</td><td></td></tr>
+    <tr><td class="mono">6001 F000</td><td>TIMG0: timer and watchdog</td><td></td></tr>
+    <tr><td class="mono">6002 0000</td><td>TIMG1</td><td></td></tr>
+    <tr><td class="mono">6002 3000</td><td>SYSTIMER: the time counter</td><td></td></tr>
+    <tr><td class="mono">6002 4000</td><td>SPI2</td><td></td></tr>
+    <tr><td class="mono">600C 0000</td><td>SYSTEM: clocks and reset for each peripheral</td><td></td></tr>
+    <tr><td class="mono">600C 2000</td><td>Interrupt matrix</td><td></td></tr>
+  </table></div>
+  <p>Peripherals are <b>memory-mapped</b>: a peripheral register is read and written with <code>lw</code> and <code>sw</code>, just like RAM. The difference is that writing there does something: turn on a pin, send a character, start a timer.</p>
+  <p>If the CPU asks for an address where nothing lives, writes to FLASH or tries to execute from a place that isn't code, the bus answers with an error and the CPU jumps to the exception handler. The terminal shows a <code>Guru Meditation Error</code> and <code>mcause</code> says what happened (for example, 7 = store not allowed).</p>
+  <p>The model's memories answer in the same cycle, which is why an <code>lw</code> finishes inside the execute phase. In the real chip the flash is outside the processor, connected over SPI, and read through a cache.</p>
+</section>
+
+<!-- ============================================================ 8 -->
+<section id="gpio">
+  <div class="sec-cabeza"><span class="sec-num">08</span><h2>A signal's journey to the GPIO</h2>
+    <span class="donde"><b>U1</b> › GPIO (GPIO_IOMUX) › PAD8 (PadGPIO)</span></div>
+  <p>What happens between <code>digitalWrite(8, HIGH)</code> and the red LED lighting up? Let's follow the signal.</p>
+  <ul class="cadena" aria-label="Summary of the path">
+    <li><span>sw a1, 8(a0)<small>instruction</small></span></li>
+    <li><span>CPU<small>execute</small></span></li>
+    <li><span>bus<small>0x60004008</small></span></li>
+    <li><span>sel_GPIO<small>decoder</small></span></li>
+    <li><span>GPIO_OUT<small>register</small></span></li>
+    <li><span>matrix and IO MUX<small>what goes out on the pin?</small></span></li>
+    <li><span>PAD8<small>output buffer</small></span></li>
+    <li><span>LED<small>board</small></span></li>
+  </ul>
+  <ol class="pista">
+    <li><h4>The program</h4>
+      <p><code>digitalWrite(8, HIGH)</code> calls <code>gpio_set(8, 1)</code>, which writes <code>1 &lt;&lt; 8</code> to the <b>GPIO_OUT_W1TS</b> register (address <code>0x60004008</code>). The compiler turns it into an instruction like <code>sw a1, 8(a0)</code>, with <code>a0 = 0x60004000</code> and <code>a1 = 0x100</code>.</p></li>
+    <li><h4>Fetch</h4>
+      <p>The CPU brings that instruction in from FLASH.</p>
+      <p class="mirar"><b>Panel</b>bus: lee (read) = 1, dato leído (data read) = 00b52423</p></li>
+    <li><h4>Execute</h4>
+      <p>The address adder computes <code>a0 + 8 = 0x60004008</code>. The CPU puts that address and the data <code>0x100</code> on the bus with the write signal at 1.</p>
+      <p class="mirar"><b>Panel</b>bus: address 60004008 · escribe (write) = 1 (LED BUS_ESCRIBE) · data written 100</p></li>
+    <li><h4>Address decoder</h4>
+      <p>The address starts with <code>0x600</code>, so it's a peripheral; page <code>0x60004</code> is the GPIO. <code>sel_GPIO</code> goes high and only that block sees the write.</p>
+      <p class="mirar"><b>Logisim</b>U1 › BUS: sel_PERIFERICOS, sel_GPIO</p></li>
+    <li><h4>The GPIO_OUT register</h4>
+      <p>On the rising edge that ends the execute phase, the register stores <code>OUT | 0x100</code>. W1TS means "write 1 to set": bits at 1 turn on and the others don't change. Its partner W1TC (<code>0x6000400C</code>) turns off.</p></li>
+    <li><h4>GPIO matrix and IO MUX</h4>
+      <p>Each pin can output a peripheral's signal (UART, LEDC, SPI…) or the GPIO_OUT bit. For pin 8, <code>GPIO_FUNC8_OUT_SEL = 128</code> means "plain GPIO", and the IO MUX is set to function 1 (GPIO). Bit 8 of GPIO_ENABLE enables the output; <code>pinMode(8, OUTPUT)</code> set it to 1.</p></li>
+    <li><h4>The pad</h4>
+      <p>PAD8 drives the pin with a tri-state buffer: if the output is enabled it puts the value on the line, and if not it leaves it free to be used as an input, with pull-up or pull-down.</p>
+      <p class="mirar"><b>Logisim</b>U1 › GPIO › PAD8: valor_salida, oe_final</p></li>
+    <li><h4>The board</h4>
+      <p>The pin's line reaches the red LED, which lights up. It all happens on the same edge: from the register to the LED there are only gates, no other flip-flop in the way.</p></li>
+  </ol>
+  <h3>And the other way: a button coming in</h3>
+  <p>When you press BOOT, pin GPIO9 drops to 0. The pad passes it inward (if the input is enabled) and two flip-flops in a row, <code>SINC1</code> and <code>SINC2</code>, synchronize it to the clock, as in the real chip, so a half-changed value is never read. Out of that comes <b>GPIO_IN</b> (<code>0x6000403C</code>), which the program reads with <code>lw</code>. That's why the button takes two cycles to "arrive". A third register, <code>ANTERIOR</code> (previous), keeps last cycle's value to detect edges: that feeds the interrupts.</p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section id="interrupciones">
+  <div class="sec-cabeza"><span class="sec-num">09</span><h2>Interrupts</h2>
+    <span class="donde"><b>U1</b> › INTERRUPT (MatrizInterrupciones) · CPU › CSR</span></div>
+  <p>A program can wait for a button by reading GPIO_IN over and over, but it's more efficient for the hardware to give notice. That's an <b>interrupt</b>: the CPU drops what it was doing, runs a function that handles the notice (the interrupt service routine, or ISR) and returns exactly where it was, without the main program noticing.</p>
+  <ol class="pista">
+    <li><h4>The GPIO detects the edge</h4>
+      <p>With <code>attachInterrupt(9, …, FALLING)</code> pin 9 is configured for falling edge. When <code>SINC2</code> is 0 and <code>ANTERIOR</code> is 1, bit 9 of <b>GPIO_STATUS</b> turns on.</p></li>
+    <li><h4>The interrupt matrix picks a line</h4>
+      <p>The ESP32-C3 has 62 interrupt sources and the CPU has 31 lines. The matrix connects each source to a line with a priority: the SDK connects source 16 (GPIO) to line 31 with priority 3. A tree of comparators (<code>NodoPrioridad</code>) picks the pending line with the highest priority.</p></li>
+    <li><h4>The CPU takes the interrupt</h4>
+      <p>At the start of a fetch phase, if an interrupt is pending and <code>mstatus.MIE = 1</code>, the CPU doesn't fetch the instruction: it saves the PC in <code>mepc</code>, the cause in <code>mcause</code> (<code>0x8000001F</code>: interrupt on line 31), clears MIE so it isn't interrupted again and jumps to <code>mtvec + 4 × 31</code>.</p>
+      <p class="mirar"><b>State</b>mepc, mcause, mstatus_MIE</p></li>
+    <li><h4>The vector table</h4>
+      <p>At that address there's a jump to <code>_irq_entry</code>, which saves 16 registers on the stack (sixteen <code>sw</code> in a row you'll see on the panel) and calls the SDK dispatcher. It reads GPIO_STATUS, clears it by writing GPIO_STATUS_W1TC and calls your function.</p></li>
+    <li><h4>Returning</h4>
+      <p>The registers are restored and the <code>mret</code> instruction returns the PC to <code>mepc</code> and turns MIE back on. The main program carries on as if nothing happened.</p></li>
+  </ol>
+  <p>Exceptions use the same mechanism: an illegal instruction, an invalid address or an <code>ecall</code> also save <code>mepc</code> and <code>mcause</code> and jump to <code>mtvec</code>, but to entry 0 of the table.</p>
+</section>
+
+<!-- ============================================================ 10 -->
+<section id="perifericos">
+  <div class="sec-cabeza"><span class="sec-num">10</span><h2>The peripherals</h2>
+    <span class="donde"><b>U1</b> › UART0 · GPIO · SYSTIMER · TIMG0 · LEDC · SPI2 · I2C …</span></div>
+  <p>They all have their registers at the same addresses and with the same bits as the real chip (Espressif's technical reference manual works for the model), although inside they are simpler versions.</p>
+  <div class="tabla-env"><table>
+    <tr><th>Peripheral</th><th>What it does and how</th><th>On the board · examples</th></tr>
+    <tr><td><b>UART0</b></td><td>Serial port. A 128-byte FIFO and a shift register that sends each bit for 4 cycles: start, 8 data bits and stop, about 40 cycles per character.</td><td>USB-serial bridge → terminal; the keyboard comes in on RX. <span class="mono">hola_mundo, serial_eco</span></td></tr>
+    <tr><td><b>GPIO + IO MUX</b></td><td>22 pins with a matrix to connect peripherals, pull-up/pull-down, synchronizers and edge detection.</td><td>One LED per pin, BOOT, BOTON_1, BOTON_2. <span class="mono">parpadeo, blink</span></td></tr>
+    <tr><td><b>SYSTIMER</b></td><td>52-bit counter that adds 1 every cycle. <code>millis()</code>, <code>delay()</code> and <code>vTaskDelay</code> use it to measure time.</td><td><span class="mono">all</span></td></tr>
+    <tr><td><b>TIMG0, TIMG1</b></td><td>54-bit timers with alarm, and a watchdog: if the program doesn't "feed" it in time, it resets the chip.</td><td><span class="mono">temporizadores</span></td></tr>
+    <tr><td><b>RTC_CNTL</b></td><td>Keeps the reason for the last reset (the <code>rst:0x…</code> the ROM prints), the RTC watchdog and software reset.</td><td><span class="mono">temporizadores, idf/hola_mundo</span></td></tr>
+    <tr><td><b>LEDC</b></td><td>PWM: a counter is compared with the "duty" and the pin is 1 while the counter is lower. Brightness depends on what fraction of the time it's on. Has hardware fade.</td><td>LEDs on GPIO18 and GPIO0. <span class="mono">pwm, pwm_respira, ledc_fade</span></td></tr>
+    <tr><td><b>SPI2</b></td><td>Sends bytes bit by bit with its own clock (SCK, MOSI, CS).</td><td>74HC595 (U2) with 8 yellow LEDs. <span class="mono">spi_leds, spi_barra</span></td></tr>
+    <tr><td><b>I2C</b></td><td>Two open-drain wires (SDA, SCL), with 7-bit address and ACK.</td><td>I2C memory (U3, address 0x50). <span class="mono">memoria_i2c, i2c_memoria</span></td></tr>
+    <tr><td><b>SYSTEM, eFuse, matrix</b></td><td>Turn on each peripheral's clock and take it out of reset, store the MAC and route the interrupts.</td><td></td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 11 -->
+<section id="codigo">
+  <div class="sec-cabeza"><span class="sec-num">11</span><h2>From code to chip: Arduino and ESP-IDF</h2>
+    <span class="donde">folder <b>sdk</b> › compilar.py</span></div>
+  <ul class="cadena" aria-label="Compilation steps">
+    <li><span>your program<small>.ino · main.c</small></span></li>
+    <li><span>compilar.py<small>puts the pieces together</small></span></li>
+    <li><span>RISC-V GCC<small>the one from ESP-IDF</small></span></li>
+    <li><span>.elf<small>linked program</small></span></li>
+    <li><span>.bin<small>the bytes</small></span></li>
+    <li><span>.hex<small>Logisim format</small></span></li>
+    <li><span>FLASH ROM<small>of the model</small></span></li>
+  </ul>
+
+  <h3>Compiling on Windows</h3>
+  <ol>
+    <li>Open <b>ESP-IDF CMD</b> or <b>ESP-IDF PowerShell</b> (the shortcuts left by the ESP-IDF installer). That way the <code>riscv32-esp-elf-gcc</code> compiler and Python are already available. A normal terminal works too if you have Python: the script looks for the compiler in <code>%USERPROFILE%\.espressif</code>. On macOS and Linux it works the same way.</li>
+    <li>Go into the <code>sdk</code> folder and compile an example:</li>
+  </ol>
+  <div class="codigo"><pre>cd path/to/esp32c3-logisim/sdk
+python compilar.py arduino/blink</pre><button class="copiar" type="button">Copy</button></div>
+  <ol start="3">
+    <li>Open <code>arduino/blink/logisim/blink.circ</code>: it's a copy of the circuit with the program already loaded. Press <kbd>Ctrl</kbd>+<kbd>K</kbd>.</li>
+  </ol>
+  <p>To load a <code>.hex</code> into the circuit you already have open: double-click <b>ESP32C3</b> in the Design tab, right-click the <b>FLASH</b> ROM › <b>Load Image…</b>, pick the file, go back to PlacaDevKit and press RESET.</p>
+  <h3>Your own program</h3>
+  <p>Copy an example folder (for example <code>arduino/blink</code> to <code>arduino/my_program</code>), rename the <code>.ino</code> so it matches the folder, edit it and compile it:</p>
+  <div class="codigo"><pre>python compilar.py arduino/my_program
+python compilar.py idf/my_app            <span class="com"># ESP-IDF: a folder with main.c and app_main()</span>
+python compilar.py examples/my_test      <span class="com"># C with main() and sdk.h</span></pre><button class="copiar" type="button">Copy</button></div>
+  <p>The script detects the style by itself: <code>setup()</code> and <code>loop()</code> is Arduino, <code>app_main()</code> is ESP-IDF and <code>main()</code> is C. Useful options: <code>--ciclos-por-ms 4</code> makes each millisecond of the program last 4 cycles instead of 1 (useful if your program does a lot of work between short pauses; pauses get longer), <code>--cc PATH</code> sets the compiler and <code>-v</code> shows the commands.</p>
+
+  <h3>What happens when you press RESET</h3>
+  <ol class="pista">
+    <li><h4>The boot ROM</h4><p>The PC starts at <code>0x40000000</code>. The ROM prints <code>ESP-ROM:esp32c3-logisim</code> and the reset reason, and reads the strapping pins: if BOOT (GPIO9) is held, it enters download mode and waits, like the real chip.</p></li>
+    <li><h4>The FLASH marker</h4><p>If the first 8 bytes of FLASH are <code>0xAEDB041D 0xAEDB041D</code> (the ESP32-C3 "direct boot"), it jumps to <code>0x42000008</code>.</p></li>
+    <li><h4>start.S</h4><p>Sets up <code>gp</code> and <code>sp</code> (the stack starts at the end of SRAM), copies initialized variables (<code>.data</code>) to SRAM, zeroes the rest (<code>.bss</code>), points <code>mtvec</code> to the vector table and calls <code>sdk_init</code>, the C++ constructors and <code>main()</code>.</p></li>
+    <li><h4>Your code</h4><p>In C, <code>main()</code> is yours. In Arduino, <code>main()</code> calls <code>setup()</code> once and <code>loop()</code> forever. In ESP-IDF, it creates the main task and calls <code>app_main()</code>.</p></li>
+  </ol>
+
+  <h3>What works</h3>
+  <div class="tabla-env"><table>
+    <tr><th>Layer</th><th>Functions</th></tr>
+    <tr><td><b>Arduino</b></td><td><code>pinMode</code>, <code>digitalWrite/Read</code>, <code>analogWrite</code> (via LEDC), <code>millis</code>, <code>micros</code>, <code>delay</code>, <code>attachInterrupt</code>, <code>Serial</code> (<code>print</code>, <code>println</code>, <code>printf</code>, <code>read</code>, <code>available</code>, <code>readStringUntil</code>, <code>parseInt</code>), <code>String</code>, <code>Wire</code> (I2C), <code>SPI</code>, <code>shiftOut</code>, <code>random</code>, <code>map</code>, <code>constrain</code>.</td></tr>
+    <tr><td><b>ESP-IDF</b></td><td><code>app_main</code>, <code>printf</code>, <code>ESP_LOGI/W/E</code>, FreeRTOS (<code>xTaskCreate</code>, <code>vTaskDelay</code>, queues, semaphores, mutexes), <code>driver/gpio</code> (with the ISR service), <code>driver/ledc</code> (with fade), <code>driver/uart</code>, <code>driver/i2c</code>, <code>esp_timer_get_time</code>, <code>esp_restart</code>, <code>esp_random</code>, <code>esp_chip_info</code>, <code>esp_read_mac</code>.</td></tr>
+  </table></div>
+  <h3>What's different</h3>
+  <ul>
+    <li><b>Time runs in slow motion.</b> 1 ms of the program = 1 cycle of the model, so <code>delay(1000)</code> is 1000 cycles: a few seconds in Logisim, depending on your computer.</li>
+    <li><b>FreeRTOS is cooperative.</b> Tasks switch only when one calls <code>vTaskDelay</code>, waits on a queue or semaphore, or calls <code>taskYIELD()</code>. A task with an infinite loop and no pauses doesn't let the others run. On the real chip the scheduler preempts tasks every millisecond.</li>
+    <li><b>No Wi-Fi, Bluetooth or ADC.</b> They are radio and analog circuits Logisim doesn't simulate; <code>analogRead()</code> returns 0.</li>
+    <li><b>The UART has a fixed speed.</b> <code>Serial.begin()</code> accepts any value, and each character takes 40 cycles to go out.</li>
+    <li><b>PWM is 8 bits in hardware.</b> If you ask for more resolution (for example 13 bits in ESP-IDF), the value is scaled.</li>
+    <li><b>Source code is compiled.</b> A binary built with <code>idf.py build</code> or the Arduino IDE won't run on the model: it uses another image format and other libraries.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 12 -->
+<section id="transistores">
+  <div class="sec-cabeza"><span class="sec-num">12</span><h2>The transistor lab</h2>
+    <span class="donde">Design tab › double-click <b>LaboratorioTransistores</b></span></div>
+  <p>A MOS transistor is a switch controlled by a voltage. The <b>N type</b> conducts when its gate is 1 and is good at passing a 0. The <b>P type</b> conducts when its gate is 0 and is good at passing a 1. In a <b>CMOS</b> gate there is always a network of P transistors connecting the output to 1 and an N network connecting it to 0, and both never conduct at the same time.</p>
+  <div class="tabla-env"><table>
+    <tr><th>In the lab</th><th>Transistors</th><th>How it's built</th></tr>
+    <tr><td>Inverter (NOT)</td><td class="mono">2</td><td>A P on top and an N below, with their gates tied together.</td></tr>
+    <tr><td>NAND</td><td class="mono">4</td><td>Two P in parallel on top and two N in series below. NOR is the other way around.</td></tr>
+    <tr><td>Full adder</td><td class="mono">28</td><td>The "mirror" adder: one stage computes the inverted carry and another the sum, without going through separate gates.</td></tr>
+    <tr><td>4-bit adder</td><td class="mono">112</td><td>Four 28-transistor adders in a chain, with displays to see the numbers.</td></tr>
+    <tr><td>D latch, D flip-flop and counter</td><td class="mono">—</td><td>Transistor NANDs with feedback. The master-slave flip-flop copies on the rising edge; the counter uses four flip-flops and the transistor adder, with its own clock (<kbd>Ctrl</kbd>+<kbd>K</kbd>).</td></tr>
+  </table></div>
+  <p>In Logisim, if a transistor's gate has no defined value, the output is undefined (blue) or in error (red). A freshly powered latch doesn't know which value to hold, so the ones in the lab have a reset input that puts them in a known state.</p>
+  <p>To go back to the board: double-click <b>PlacaDevKit</b> in the Design tab.</p>
+</section>
+
+<!-- ============================================================ 13 -->
+<section id="experimentos">
+  <div class="sec-cabeza"><span class="sec-num">13</span><h2>Experiments to try</h2></div>
+  <ul class="experimentos">
+    <li><h4>Count an instruction's cycles</h4><p>Stop the clock with <kbd>Ctrl</kbd>+<kbd>K</kbd> and step with <kbd>Ctrl</kbd>+<kbd>T</kbd>. Watch BUSCANDO and EJECUTANDO alternate and the PC change every two cycles, sometimes three.</p><p class="prog-ej">any program</p></li>
+    <li><h4>Catch an addition</h4><p>Step until the panel's operation is 0 and check in hex that A + B = result. Then look for a subtraction (8) and a comparison (2 or 3).</p><p class="prog-ej">hola_mundo (computes 123456 × 789)</p></li>
+    <li><h4>Follow the write to the LED</h4><p>Open Simulate › Timing Diagram and add XTAL, BUS_ESCRIBE and the red LED. You'll see the LED change on the same edge that ends an <code>sw</code> to <code>0x60004008</code> or <code>0x6000400C</code>.</p><p class="prog-ej">parpadeo, arduino/blink</p></li>
+    <li><h4>Watch the carry travel</h4><p>With simulation disabled (<kbd>Ctrl</kbd>+<kbd>E</kbd>), go into SUMADOR through the Simulate tab, press <kbd>Ctrl</kbd>+<kbd>T</kbd> and step with <kbd>Ctrl</kbd>+<kbd>I</kbd>.</p><p class="prog-ej">any program</p></li>
+    <li><h4>Live interrupt</h4><p>Press BOOT while it runs and watch <code>mepc</code>, <code>mcause</code> and <code>mstatus_MIE</code> change in State. The PC jumps to the vector table (<code>0x420001xx</code>).</p><p class="prog-ej">arduino/boton_interrupcion, interrupciones</p></li>
+    <li><h4>Task switch</h4><p>Each FreeRTOS task has its own stack. Watch <code>x02_sp</code> in State: it jumps from one SRAM region to another every time the scheduler switches tasks.</p><p class="prog-ej">idf/tareas_y_colas</p></li>
+    <li><h4>Change a program</h4><p>Edit <code>sdk/arduino/blink/blink.ino</code>: change the pin or the <code>delay</code>, compile with <code>compilar.py</code> and open the <code>.circ</code> it generates.</p><p class="prog-ej">arduino/blink</p></li>
+    <li><h4>Cause an exception</h4><p>Write to FLASH: <code>*(volatile int *)0x42000000 = 1;</code>. The terminal shows the <code>Guru Meditation Error</code> with <code>mcause = 7</code>, and <code>mepc</code> points to the guilty instruction.</p><p class="prog-ej">examples/hola_mundo modified</p></li>
+  </ul>
+</section>
+
+<!-- ============================================================ 14 -->
+<section id="real">
+  <div class="sec-cabeza"><span class="sec-num">14</span><h2>How it compares to the real chip</h2></div>
+  <p>The model follows the ESP32-C3 technical reference manual: same addresses, same registers and same instruction set. What changes is whatever would make simulation impossible or endless.</p>
+  <div class="tabla-env"><table>
+    <tr><th>Aspect</th><th>Real ESP32-C3</th><th>Model</th></tr>
+    <tr><td>CPU</td><td>RISC-V RV32IMC, 4-stage pipeline, up to 160 MHz</td><td>Multicycle RV32IMC: 2 or 3 cycles per instruction, a few hundred cycles per second in Logisim</td></tr>
+    <tr><td>Program</td><td>SPI flash, typically 4 MB, read through a 16 KB cache</td><td>1 MB Logisim ROM that answers in the same cycle</td></tr>
+    <tr><td>SRAM</td><td>400 KB (16 KB for the cache)</td><td>384 KB</td></tr>
+    <tr><td>Internal ROM</td><td>384 KB: boot and library functions</td><td>16 KB: boot only</td></tr>
+    <tr><td>Boot</td><td>ROM → second-stage bootloader → application (or direct boot)</td><td>ROM → direct boot</td></tr>
+    <tr><td>Peripherals</td><td>More than 20, with DMA</td><td>GPIO, UART ×2, SYSTIMER, TIMG ×2 with watchdogs, RTC_CNTL, LEDC, SPI2, I2C, interrupt matrix, SYSTEM, eFuse; no DMA</td></tr>
+    <tr><td>Radio and analog</td><td>Wi-Fi 802.11 b/g/n, Bluetooth LE 5, 12-bit ADC, temperature sensor</td><td>No (they are not digital logic)</td></tr>
+    <tr><td>Clocks</td><td>40 MHz crystal, PLL and several clock domains</td><td>A single clock: XTAL</td></tr>
+  </table></div>
+  <div class="pie">
+    <p>Sources: <a href="https://www.espressif.com/sites/default/files/documentation/esp32-c3_technical_reference_manual_en.pdf">ESP32-C3 Technical Reference Manual</a> (Espressif) and <a href="https://github.com/riscv/riscv-isa-manual">the RISC-V instruction set manual</a>.</p>
+    <p>ESP32-C3 model for Logisim Evolution · version 0.2 · by <a href="https://franciscoaldunate.cl">Francisco Aldunate</a> · <a href="https://github.com/franciscoaldun/esp32c3-logisim">github.com/franciscoaldun/esp32c3-logisim</a></p>
+  </div>
+</section>
+
+</div>
+<script>
+(function () {
+  "use strict";
+  var hex8 = function (v) { return ("00000000" + (v >>> 0).toString(16)).slice(-8); };
+  var hex = function (v) { return (v >>> 0).toString(16); };
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ============================================================ copiar */
+  document.querySelectorAll(".copiar").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var pre = b.parentNode.querySelector("pre");
+      var txt = pre.innerText.replace(/\s+#.*$/gm, "");
+      var ok = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
+      var sel = function () { var r = document.createRange(); r.selectNodeContents(pre); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Ctrl+C"; };
+      try { navigator.clipboard.writeText(txt).then(ok, sel); } catch (e) { sel(); }
+    });
+  });
+
+  /* ============================================================ paso a paso */
+  var PROG = [
+    { pc: 0x42000100, w: 0x60004537, asm: "lui  a0, 0x60004", nota: "a0 = 0x60004000, the GPIO base" },
+    { pc: 0x42000104, w: 0x10000593, asm: "addi a1, zero, 256", nota: "a1 = 0x100: a 1 in bit 8" },
+    { pc: 0x42000108, w: 0x02b52223, asm: "sw   a1, 36(a0)", nota: "GPIO_ENABLE_W1TS: GPIO8 is an output" },
+    { pc: 0x4200010c, w: 0x00b52423, asm: "sw   a1, 8(a0)", nota: "GPIO_OUT_W1TS: LED on" },
+    { pc: 0x42000110, w: 0x00b52623, asm: "sw   a1, 12(a0)", nota: "GPIO_OUT_W1TC: LED off" },
+    { pc: 0x42000114, w: 0xff9ff06f, asm: "jal  zero, -8", nota: "back to 0x4200010c" }
+  ];
+  var porPC = function (pc) { for (var i = 0; i < PROG.length; i++) if (PROG[i].pc === pc) return PROG[i]; return null; };
+  var S, historia, previo;
+  function inicial() {
+    return { clk: 0, fase: "BUSCA", pc: 0x42000100, ir: 0, a0: 0, a1: 0, en: 0, out: 0, ciclos: 0, instr: 0,
+      msg: "<b>Clock at 0, fetch phase.</b> The PC (42000100) is already on the bus and the FLASH answers with the first instruction. Nothing is stored yet: that happens on the rising edge." };
+  }
+  function comb(s) {
+    var c = { dir: s.pc, lee: 0, esc: 0, datoEsc: null, datoLec: null, a: null, op: null, b: null, y: null };
+    if (s.fase === "BUSCA") { c.lee = 1; c.datoLec = porPC(s.pc).w; return c; }
+    var ins = porPC(s.pc);
+    if (ins.w === 0x60004537) { c.a = 0; c.b = 0x60004000; c.op = 0; c.y = 0x60004000; }
+    else if (ins.w === 0x10000593) { c.a = 0; c.b = 256; c.op = 0; c.y = 256; }
+    else if ((ins.w & 0x7f) === 0x23) {
+      var off = ((ins.w >>> 25) << 5) | ((ins.w >>> 7) & 31);
+      c.a = s.a0; c.b = off; c.op = 0; c.y = (s.a0 + off) >>> 0; c.dir = c.y; c.esc = 1; c.datoEsc = s.a1;
+    }
+    return c;
+  }
+  function ledOn(s) { return ((s.en & s.out) >>> 8) & 1; }
+  function medio() {
+    var s = S, n = Object.assign({}, s);
+    n.clk = 1 - s.clk;
+    if (n.clk === 1) {
+      n.ciclos = s.ciclos + 1;
+      var ins = porPC(s.pc);
+      if (s.fase === "BUSCA") {
+        n.ir = ins.w; n.fase = "EJECUTA";
+        n.msg = "<b>Rising edge:</b> the IR stored <code>" + hex8(ins.w) + "</code> (<code>" + ins.asm + "</code>). Now the phase is EXECUTE: the decoder has already raised the control signals and " +
+          (ins.w === 0xff9ff06f ? "the PC adder computes the jump target, 4200010c." :
+           (ins.w & 0x7f) === 0x23 ? "the address adder computes a0 + offset. The CPU puts the address and the data on the bus with write = 1." :
+           "the ALU computes the value that will be stored in the destination register.");
+      } else {
+        var c = comb(s), txt = "";
+        if (ins.w === 0x60004537) { n.a0 = 0x60004000; txt = "a0 stored 60004000"; }
+        else if (ins.w === 0x10000593) { n.a1 = 256; txt = "a1 stored 100 (256 in decimal)"; }
+        else if (ins.w === 0x02b52223) { n.en = s.en | s.a1; txt = "the GPIO_ENABLE register stored bit 8: the pin is now an output, but GPIO_OUT is still 0"; }
+        else if (ins.w === 0x00b52423) { n.out = s.out | s.a1; txt = "GPIO_OUT stored bit 8 and <b>the red LED turned on on this very edge</b>"; }
+        else if (ins.w === 0x00b52623) { n.out = s.out & ~s.a1; txt = "GPIO_OUT cleared bit 8 and <b>the LED turned off</b>"; }
+        else if (ins.w === 0xff9ff06f) { txt = "the PC stored the jump target (rd = zero, so no return address is saved)"; }
+        n.pc = ins.w === 0xff9ff06f ? 0x4200010c : s.pc + 4;
+        n.instr = s.instr + 1; n.fase = "BUSCA";
+        n.msg = "<b>Rising edge:</b> <code>" + ins.asm + "</code> finished: " + txt + ". The PC moves to " + hex8(n.pc) + " and the fetch phase returns.";
+      }
+    } else {
+      n.msg = "<b>Falling edge:</b> the model's registers do nothing on this edge. Signals are already stable; " +
+        (s.fase === "BUSCA" ? "the instruction waits on the bus for the IR to store it." : "the result waits at the input of its register.");
+    }
+    previo = S; S = n;
+    historia.push(muestra(S)); if (historia.length > 22) historia.shift();
+    pintarPap();
+  }
+  function muestra(s) { var c = comb(s); return { clk: s.clk, busca: s.fase === "BUSCA" ? 1 : 0, ejec: s.fase === "EJECUTA" ? 1 : 0, esc: c.esc, led: ledOn(s) }; }
+  function fila(nom, val, campo, led) {
+    var cambio = previo && campo && previo[campo] !== S[campo];
+    return '<div class="dbg-fila"><span>' + (led !== undefined ? '<span class="led ' + led[0] + (led[1] ? " on" : "") + '"></span>' : "") + nom + '</span><span class="v' + (cambio ? " cambio" : "") + '">' + val + "</span></div>";
+  }
+  function pintarPap() {
+    var s = S, c = comb(s), t = "";
+    PROG.forEach(function (p) {
+      var act = p.pc === s.pc;
+      t += '<tr class="' + (act ? "actual" : "") + '"><td>' + hex8(p.pc) + '</td><td>' + hex8(p.w) + "</td><td>" + p.asm.replace(/ /g, "&nbsp;") + '</td><td class="c">' + (act ? '<span class="fase-tag">' + s.fase + "</span> · " : "") + p.nota + "</td></tr>";
+    });
+    $("pap-prog").innerHTML = t;
+    var d = "";
+    d += fila("XTAL (clock)", s.clk ? "1" : "0", "clk");
+    d += fila("FETCH (BUSCANDO)", s.fase === "BUSCA" ? "1" : "0", "fase", ["azul", s.fase === "BUSCA"]);
+    d += fila("EXECUTE (EJECUTANDO)", s.fase === "EJECUTA" ? "1" : "0", "fase", ["verde", s.fase === "EJECUTA"]);
+    d += fila("PC", hex8(s.pc), "pc");
+    d += fila("instruction (IR)", hex8(s.ir), "ir");
+    d += fila("ALU: A · B → result", c.a === null ? "—" : hex(c.a) + " + " + hex(c.b) + " → " + hex(c.y));
+    d += fila("bus: address", hex8(c.dir));
+    d += fila("bus: read", c.lee ? "1" : "0", null, ["azul", c.lee]);
+    d += fila("bus: data read", c.datoLec === null ? "—" : hex8(c.datoLec));
+    d += fila("bus: write", c.esc ? "1" : "0", null, ["rojo", c.esc]);
+    d += fila("bus: data written", c.datoEsc === null ? "—" : hex8(c.datoEsc));
+    d += fila("a0 (x10) · a1 (x11)", hex(s.a0) + " · " + hex(s.a1), "a0");
+    d += fila("GPIO_ENABLE · GPIO_OUT", hex(s.en) + " · " + hex(s.out), "out");
+    d += fila("LED GPIO8", ledOn(s) ? "on" : "off", null, ["rojo", ledOn(s)]);
+    $("pap-dbg").innerHTML = d;
+    $("pap-cont").textContent = "cycles " + s.ciclos + " · instructions " + s.instr;
+    $("pap-msg").innerHTML = s.msg;
+    pintarOnda();
+  }
+  function pintarOnda() {
+    var svg = $("pap-onda"), W = 640, x0 = 92, dx = 24, filas = [["XTAL", "clk", "reloj"], ["FETCH", "busca", ""], ["EXECUTE", "ejec", ""], ["BUS_ESCRIBE", "esc", "esc"], ["GPIO8 (LED)", "led", "led8"]];
+    var h = "", n = historia.length;
+    for (var k = 0; k <= 22; k++) { var gx = x0 + k * dx; if (gx <= W) h += '<line class="guia" x1="' + gx + '" y1="6" x2="' + gx + '" y2="146"/>'; }
+    filas.forEach(function (f, i) {
+      var yb = 30 + i * 27, yt = yb - 15, pts = "";
+      h += '<text x="0" y="' + (yb - 4) + '">' + f[0] + "</text>";
+      historia.forEach(function (m, j) {
+        var y = m[f[1]] ? yt : yb, xa = x0 + j * dx, xb = xa + dx;
+        pts += (j === 0 ? "M" + xa + "," + y : "V" + y) + "H" + xb;
+      });
+      if (pts) h += '<path class="traza ' + f[2] + '" d="' + pts + '"/>';
+    });
+    var xn = x0 + n * dx;
+    h += '<line class="ahora" x1="' + xn + '" y1="4" x2="' + xn + '" y2="148"/>';
+    svg.innerHTML = h;
+  }
+  function resetPap() { S = inicial(); previo = null; historia = [muestra(S)]; pintarPap(); }
+  $("pap-medio").addEventListener("click", medio);
+  $("pap-ciclo").addEventListener("click", function () { medio(); medio(); });
+  $("pap-reset").addEventListener("click", resetPap);
+  resetPap();
+
+  /* ============================================================ camino de datos */
+  var COMUN = ["ir_dec", "pc_pcn", "pcn_pc"];
+  var DP = {
+    busca: { nom: "FETCH", w: ["pc_bus", "bus_ir"], b: ["PC", "RVC", "IR"],
+      t: "<b>Fetch phase (every instruction).</b> The PC goes out on the bus as the address; the FLASH (or ROM) answers with 32 bits. If the instruction is compressed, RVC expands it to 32 bits. On the rising edge the IR stores it and the phase moves to EXECUTE." },
+    lui: { nom: "lui", w: ["ir_imm", "imm_mux", "mux_alu", "alu_wb", "wb_regs", "ir_regs"], b: ["DEC", "IMM", "MUXB", "ALU", "WB", "REGS", "PCN", "PC"],
+      t: "<b>lui a0, 0x60004</b>: the 20-bit immediate goes to the upper part. The ALU adds 0 + 0x60004000 and the result goes back to the registers: on the edge, a0 = 0x60004000. The PC advances to PC + 4." },
+    addi: { nom: "addi", w: ["ir_regs", "ir_imm", "r1_alu", "imm_mux", "mux_alu", "alu_wb", "wb_regs"], b: ["DEC", "REGS", "IMM", "MUXB", "ALU", "WB", "PCN", "PC"],
+      t: "<b>addi a1, a1, 5</b>: rs1 leaves the register file towards ALU input A; the multiplexer picks the immediate (5) for input B. The result goes through WB and on the edge is stored in rd. The PC advances to PC + 4." },
+    add: { nom: "add", w: ["ir_regs", "r1_alu", "r2_mux", "mux_alu", "alu_wb", "wb_regs"], b: ["DEC", "REGS", "MUXB", "ALU", "WB", "PCN", "PC"],
+      t: "<b>add a2, a1, a1</b>: both ALU inputs come from the register file (rs1 and rs2). This is the path of every register-to-register addition." },
+    lw: { nom: "lw", w: ["ir_regs", "ir_imm", "r1_agu", "imm_agu", "agu_lsu", "lsu_bus", "lsu_wb", "wb_regs"], b: ["DEC", "REGS", "IMM", "AGU", "LSU", "WB", "PCN", "PC"],
+      t: "<b>lw a3, 60(a0)</b>: the address adder computes a0 + 60 = 0x6000403C (GPIO_IN). The address goes out on the bus in the same execute phase, the peripheral answers, the LSU aligns the data and on the edge it is stored in a3." },
+    sw: { nom: "sw", w: ["ir_regs", "ir_imm", "r1_agu", "imm_agu", "agu_lsu", "r2_lsu", "lsu_bus"], b: ["DEC", "REGS", "IMM", "AGU", "LSU", "PCN", "PC"],
+      t: "<b>sw a1, 8(a0)</b>: the address adder computes a0 + 8 = 0x60004008 and rs2 (a1) is the data. Both go out on the bus with write = 1. No CPU register is written: what changes on the edge is the GPIO register." },
+    beq: { nom: "beq", w: ["ir_regs", "ir_imm", "r1_cmp", "r2_cmp", "cmp_pcn", "imm_pcn"], b: ["DEC", "REGS", "IMM", "CMP", "PCN", "PC"],
+      t: "<b>beq a2, a3, label</b>: a comparator (not the ALU) checks whether rs1 = rs2. If so, the next PC is PC + offset; otherwise PC + 4. Conditional branches don't write registers." },
+    jal: { nom: "jal", w: ["ir_imm", "imm_pcn", "link_wb", "wb_regs", "ir_regs"], b: ["DEC", "IMM", "PCN", "WB", "REGS", "PC"],
+      t: "<b>jal ra, function</b>: the next PC is PC + offset, and PC + 4 (the return address) is stored in rd. That's how a function is called; to return, <code>ret</code> is <code>jalr zero, 0(ra)</code>." }
+  };
+  var dpSel = "busca";
+  function pintarDP() {
+    var d = DP[dpSel];
+    var on = {};
+    d.w.concat(dpSel === "busca" ? [] : COMUN).forEach(function (x) { on[x] = 1; });
+    document.querySelectorAll("#dp .w").forEach(function (p) { p.classList.toggle("on", !!on[p.id.slice(2)]); });
+    var bon = {}; d.b.forEach(function (x) { bon[x] = 1; });
+    document.querySelectorAll("#dp .blk").forEach(function (r) { r.classList.toggle("on", !!bon[r.id.slice(2)]); });
+    $("dp-msg").innerHTML = d.t + (dpSel === "busca" ? "" : " <span style=\"color:var(--tinta-suave)\">(Before this, the fetch phase brought in the instruction.)</span>");
+    document.querySelectorAll("#dp-botones button").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.k === dpSel ? "true" : "false"); });
+  }
+  Object.keys(DP).forEach(function (k) {
+    var b = document.createElement("button");
+    b.className = "btn"; b.type = "button"; b.dataset.k = k; b.textContent = DP[k].nom;
+    b.addEventListener("click", function () { dpSel = k; pintarDP(); });
+    $("dp-botones").appendChild(b);
+  });
+  pintarDP();
+
+  /* ============================================================ sumador */
+  var A = 0x5B, B = 0x27, timers = [];
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function bitsHTML() {
+    var h = "";
+    [["A", "a"], ["B", "b"]].forEach(function (r) {
+      var v = r[0] === "A" ? A : B;
+      h += '<div class="bits"><span class="nom">' + r[0] + "</span>";
+      for (var i = 7; i >= 0; i--) h += '<button class="bit" type="button" data-r="' + r[1] + '" data-i="' + i + '" aria-pressed="' + ((v >> i) & 1 ? "true" : "false") + '" aria-label="' + r[0] + " bit " + i + '">' + ((v >> i) & 1) + "</button>";
+      h += '<span class="dec">' + v + "</span></div>";
+    });
+    $("sum-bits").innerHTML = h;
+    document.querySelectorAll("#sum-bits .bit").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var i = +b.dataset.i;
+        if (b.dataset.r === "a") A ^= 1 << i; else B ^= 1 << i;
+        bitsHTML(); sumar(true);
+      });
+    });
+  }
+  function sumar(animar) {
+    timers.forEach(clearTimeout); timers = [];
+    var resta = $("sum-resta").checked, bb = resta ? (~B & 255) : B, c = resta ? 1 : 0, cs = [c], ss = [];
+    for (var i = 0; i < 8; i++) {
+      var a = (A >> i) & 1, b = (bb >> i) & 1;
+      ss.push(a ^ b ^ c); c = (a & b) | (c & (a ^ b)); cs.push(c);
+    }
+    var h = '<span class="nom" style="font-family:var(--f-mono);font-size:0.72rem;align-self:center">FA</span>';
+    for (var k = 7; k >= 0; k--) {
+      h += '<div class="fa" id="fa' + k + '"><span class="s">' + ss[k] + '</span><span>' + ((A >> k) & 1) + "+" + ((bb >> k) & 1) + "+" + cs[k] + '</span><span class="c">c=' + cs[k + 1] + "</span></div>";
+    }
+    var y = ss.reduce(function (acc, s, i) { return acc | (s << i); }, 0);
+    h += '<span class="dec" style="font-family:var(--f-mono);font-size:0.82rem;color:var(--tinta-suave);text-align:right;align-self:center">' + y + "</span>";
+    $("sum-fas").innerHTML = h;
+    var sA = A > 127 ? A - 256 : A, sB = B > 127 ? B - 256 : B, sY = y > 127 ? y - 256 : y;
+    var exacto = resta ? sA - sB : sA + sB, desb = exacto !== sY;
+    $("sum-res").innerHTML = "<span>result <b>" + ("0000000" + y.toString(2)).slice(-8) + "</b> = 0x" + ("0" + y.toString(16)).slice(-2) + "</span>" +
+      "<span>unsigned: " + A + (resta ? " − " : " + ") + B + " = " + (resta ? A - B : A + B) + (resta ? (A < B ? " (negative: doesn't fit)" : "") : (A + B > 255 ? " (doesn't fit in 8 bits)" : "")) + "</span>" +
+      "<span>signed: " + sA + (resta ? " − " : " + ") + sB + " = " + sY + (desb ? " (overflow)" : "") + "</span>" +
+      "<span>final carry c8 = " + cs[8] + "</span>";
+    for (var j = 0; j < 8; j++) {
+      (function (j) {
+        var el = $("fa" + j);
+        if (cs[j + 1]) el.classList.add("c1");
+        if (animar && !reduce) {
+          el.classList.add("ondea");
+          timers.push(setTimeout(function () { el.classList.remove("ondea"); }, 120 + j * 90));
+        }
+      })(j);
+    }
+  }
+  $("sum-resta").addEventListener("change", function () { sumar(true); });
+  bitsHTML(); sumar(false);
+
+  /* ============================================================ decodificador */
+  var ABI = ["zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+    "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"];
+  var CSRN = { 0x300: "mstatus", 0x301: "misa", 0x304: "mie", 0x305: "mtvec", 0x340: "mscratch", 0x341: "mepc", 0x342: "mcause",
+    0x343: "mtval", 0x344: "mip", 0xB00: "mcycle", 0xB02: "minstret", 0xB80: "mcycleh", 0xB82: "minstreth", 0xF11: "mvendorid", 0xF14: "mhartid", 0xC00: "cycle", 0xC01: "time", 0xC02: "instret" };
+  var r = function (n) { return ABI[n]; };
+  var sx = function (v, bits) { var m = 1 << (bits - 1); return ((v & ((1 << bits) - 1)) ^ m) - m; };
+  function decode(w) {
+    var op = w & 0x7f, rd = (w >>> 7) & 31, f3 = (w >>> 12) & 7, rs1 = (w >>> 15) & 31, rs2 = (w >>> 20) & 31, f7 = w >>> 25;
+    var iI = sx(w >>> 20, 12), iS = sx(((w >>> 25) << 5) | ((w >>> 7) & 31), 12);
+    var iB = sx(((w >>> 31) << 12) | (((w >>> 7) & 1) << 11) | (((w >>> 25) & 63) << 5) | (((w >>> 8) & 15) << 1), 13);
+    var iU = (w & 0xfffff000) >>> 0;
+    var iJ = sx(((w >>> 31) << 20) | (((w >>> 12) & 255) << 12) | (((w >>> 20) & 1) << 11) | (((w >>> 21) & 1023) << 1), 21);
+    var F = { R: [["funct7", 31, 25, ""], ["rs2", 24, 20, "reg"], ["rs1", 19, 15, "reg"], ["funct3", 14, 12, ""], ["rd", 11, 7, "reg"], ["opcode", 6, 0, "op"]],
+      I: [["immediate", 31, 20, "imm"], ["rs1", 19, 15, "reg"], ["funct3", 14, 12, ""], ["rd", 11, 7, "reg"], ["opcode", 6, 0, "op"]],
+      S: [["imm[11:5]", 31, 25, "imm"], ["rs2", 24, 20, "reg"], ["rs1", 19, 15, "reg"], ["funct3", 14, 12, ""], ["imm[4:0]", 11, 7, "imm"], ["opcode", 6, 0, "op"]],
+      B: [["imm[12|10:5]", 31, 25, "imm"], ["rs2", 24, 20, "reg"], ["rs1", 19, 15, "reg"], ["funct3", 14, 12, ""], ["imm[4:1|11]", 11, 7, "imm"], ["opcode", 6, 0, "op"]],
+      U: [["immediate[31:12]", 31, 12, "imm"], ["rd", 11, 7, "reg"], ["opcode", 6, 0, "op"]],
+      J: [["imm[20|10:1|11|19:12]", 31, 12, "imm"], ["rd", 11, 7, "reg"], ["opcode", 6, 0, "op"]] };
+    var o = { fmt: "?", asm: "", exp: "" };
+    var nombres = { rd: r(rd), rs1: r(rs1), rs2: r(rs2) };
+    switch (op) {
+      case 0x37: o.fmt = "U"; o.asm = "lui " + r(rd) + ", 0x" + hex(iU >>> 12); o.exp = r(rd) + " = 0x" + hex8(iU) + " (loads the upper 20 bits)"; break;
+      case 0x17: o.fmt = "U"; o.asm = "auipc " + r(rd) + ", 0x" + hex(iU >>> 12); o.exp = r(rd) + " = PC + 0x" + hex8(iU); break;
+      case 0x6f: o.fmt = "J"; o.asm = (rd === 0 ? "j " : "jal " + r(rd) + ", ") + (iJ >= 0 ? "+" : "") + iJ;
+        o.exp = (rd === 0 ? "" : r(rd) + " = PC + 4 (return address); ") + "PC = PC " + (iJ >= 0 ? "+ " : "− ") + Math.abs(iJ); break;
+      case 0x67: o.fmt = "I";
+        if (rd === 0 && rs1 === 1 && iI === 0) { o.asm = "ret   (jalr zero, 0(ra))"; o.exp = "returns from a function: PC = ra"; }
+        else { o.asm = "jalr " + r(rd) + ", " + iI + "(" + r(rs1) + ")"; o.exp = (rd ? r(rd) + " = PC + 4; " : "") + "PC = " + r(rs1) + " + " + iI; } break;
+      case 0x63: o.fmt = "B";
+        var bn = ["beq", "bne", "", "", "blt", "bge", "bltu", "bgeu"][f3], bc = ["==", "!=", "", "", "<", ">=", "< (unsigned)", ">= (unsigned)"][f3];
+        if (!bn) break;
+        o.asm = bn + " " + r(rs1) + ", " + r(rs2) + ", " + (iB >= 0 ? "+" : "") + iB;
+        o.exp = "if " + r(rs1) + " " + bc + " " + r(rs2) + ": PC = PC " + (iB >= 0 ? "+ " : "− ") + Math.abs(iB) + "; otherwise PC + 4"; break;
+      case 0x03: o.fmt = "I";
+        var ln = ["lb", "lh", "lw", "", "lbu", "lhu", "", ""][f3], lb = ["1 byte, signed", "2 bytes, signed", "4 bytes", "", "1 byte", "2 bytes", "", ""][f3];
+        if (!ln) break;
+        o.asm = ln + " " + r(rd) + ", " + iI + "(" + r(rs1) + ")"; o.exp = r(rd) + " = memory[" + r(rs1) + " + " + iI + "] (" + lb + ")"; break;
+      case 0x23: o.fmt = "S";
+        var sn = ["sb", "sh", "sw"][f3], sb = ["1 byte", "2 bytes", "4 bytes"][f3];
+        if (!sn) break;
+        o.asm = sn + " " + r(rs2) + ", " + iS + "(" + r(rs1) + ")"; o.exp = "memory[" + r(rs1) + " + " + iS + "] = " + r(rs2) + " (" + sb + ")"; break;
+      case 0x13: o.fmt = "I";
+        var sh = w >>> 20 & 31;
+        if (f3 === 1) { o.asm = "slli " + r(rd) + ", " + r(rs1) + ", " + sh; o.exp = r(rd) + " = " + r(rs1) + " << " + sh; break; }
+        if (f3 === 5) { var ar = f7 === 0x20; o.asm = (ar ? "srai " : "srli ") + r(rd) + ", " + r(rs1) + ", " + sh; o.exp = r(rd) + " = " + r(rs1) + " >> " + sh + (ar ? " (keeps the sign)" : ""); break; }
+        var inn = ["addi", "", "slti", "sltiu", "xori", "", "ori", "andi"][f3], ins = ["+", "", "<", "<", "^", "", "|", "&"][f3];
+        if (f3 === 0 && rs1 === 0) { o.asm = "li " + r(rd) + ", " + iI + "   (addi " + r(rd) + ", zero, " + iI + ")"; o.exp = r(rd) + " = " + iI; break; }
+        if (f3 === 0 && iI === 0) { o.asm = (rd === 0 && rs1 === 0) ? "nop" : "mv " + r(rd) + ", " + r(rs1); o.exp = rd === 0 ? "does nothing" : r(rd) + " = " + r(rs1); break; }
+        o.asm = inn + " " + r(rd) + ", " + r(rs1) + ", " + iI;
+        o.exp = f3 === 2 || f3 === 3 ? r(rd) + " = 1 if " + r(rs1) + " < " + iI + (f3 === 3 ? " (unsigned)" : "") + ", else 0" : r(rd) + " = " + r(rs1) + " " + ins + " " + iI; break;
+      case 0x33: o.fmt = "R";
+        if (f7 === 1) {
+          var mn = ["mul", "mulh", "mulhsu", "mulhu", "div", "divu", "rem", "remu"][f3], ms = ["×", "× (upper half)", "× (upper half)", "× (upper half)", "÷", "÷ (unsigned)", "remainder of", "unsigned remainder of"][f3];
+          o.asm = mn + " " + r(rd) + ", " + r(rs1) + ", " + r(rs2);
+          o.exp = f3 >= 6 ? r(rd) + " = " + ms + " " + r(rs1) + " ÷ " + r(rs2) : r(rd) + " = " + r(rs1) + " " + ms + " " + r(rs2); break;
+        }
+        var rn = { 0: f7 === 0x20 ? "sub" : "add", 1: "sll", 2: "slt", 3: "sltu", 4: "xor", 5: f7 === 0x20 ? "sra" : "srl", 6: "or", 7: "and" }[f3];
+        var rs = { add: "+", sub: "−", sll: "<<", srl: ">>", sra: ">> (signed)", xor: "^", or: "|", and: "&" }[rn];
+        o.asm = rn + " " + r(rd) + ", " + r(rs1) + ", " + r(rs2);
+        o.exp = rn === "slt" || rn === "sltu" ? r(rd) + " = 1 if " + r(rs1) + " < " + r(rs2) + (rn === "sltu" ? " (unsigned)" : "") + ", else 0" : r(rd) + " = " + r(rs1) + " " + rs + " " + r(rs2); break;
+      case 0x0f: o.fmt = "I"; o.asm = f3 === 1 ? "fence.i" : "fence"; o.exp = "orders memory accesses (does nothing in the model)"; break;
+      case 0x73: o.fmt = "I";
+        if (f3 === 0) {
+          var sys = { 0: ["ecall", "system call: exception with mcause = 11"], 1: ["ebreak", "breakpoint: with DBG = 1 it halts the CPU (LED CPU_DETENIDA)"], 0x302: ["mret", "returns from an interrupt: PC = mepc and MIE goes back to what it was"], 0x105: ["wfi", "waits for an interrupt: the CPU stays in EXECUTE until one arrives"] }[w >>> 20];
+          if (sys && rd === 0 && rs1 === 0) { o.asm = sys[0]; o.exp = sys[1]; }
+          break;
+        }
+        var cn = CSRN[w >>> 20] || ("0x" + hex(w >>> 20)), cop = ["", "csrrw", "csrrs", "csrrc", "", "csrrwi", "csrrsi", "csrrci"][f3];
+        if (!cop) break;
+        var src = f3 >= 5 ? String(rs1) : r(rs1);
+        if (f3 === 2 && rs1 === 0) { o.asm = "csrr " + r(rd) + ", " + cn + "   (csrrs " + r(rd) + ", " + cn + ", zero)"; o.exp = r(rd) + " = " + cn; break; }
+        o.asm = cop + " " + r(rd) + ", " + cn + ", " + src;
+        o.exp = (rd ? r(rd) + " = " + cn + " (old value); " : "") + cn + (f3 % 4 === 1 ? " = " + src : f3 % 4 === 2 ? " |= " + src + " (sets bits)" : " &= ~" + src + " (clears bits)"); break;
+    }
+    o.campos = F[o.fmt] || null;
+    return o;
+  }
+  function decodificar(txt) {
+    var t = String(txt).trim().replace(/^0x/i, "").replace(/[\s_]/g, "");
+    if (!/^[0-9a-fA-F]{1,8}$/.test(t)) { $("deco-asm").innerHTML = '<span class="error">Type up to 8 hex digits, for example 00b52423.</span>'; $("deco-exp").textContent = ""; $("deco-campos").innerHTML = ""; return; }
+    var w = parseInt(t, 16) >>> 0, o = decode(w);
+    if (!o.asm) {
+      $("deco-asm").innerHTML = '<span class="error">Not a valid RV32IMC instruction</span>';
+      $("deco-exp").textContent = (w & 3) !== 3 ? "The low two bits are not 11: it would be a 16-bit compressed instruction (the IR always shows the expanded version)." : "The CPU decoder would flag it as illegal (exception with mcause = 2).";
+      $("deco-campos").innerHTML = ""; return;
+    }
+    $("deco-asm").textContent = o.asm;
+    $("deco-exp").textContent = "Format " + o.fmt + ": " + o.exp + ".";
+    var bin = ("00000000000000000000000000000000" + w.toString(2)).slice(-32), h = "";
+    o.campos.forEach(function (c) {
+      var bits = bin.slice(31 - c[1], 32 - c[2]), val = parseInt(bits, 2), extra = "";
+      if (c[0] === "rd" || c[0] === "rs1" || c[0] === "rs2") extra = "x" + val + " " + ABI[val];
+      else if (c[0] === "opcode") extra = "0x" + hex(val);
+      else if (c[0] === "funct3" || c[0] === "funct7") extra = String(val);
+      h += '<div class="campo ' + c[3] + '" style="flex:' + (c[1] - c[2] + 1) + '"><span class="r">' + c[1] + (c[1] !== c[2] ? "–" + c[2] : "") + '</span><span class="b">' + bits + '</span><span class="r">' + c[0] + "</span>" + (extra ? '<span class="nn">' + extra + "</span>" : "") + "</div>";
+    });
+    $("deco-campos").innerHTML = h;
+  }
+  $("deco-form").addEventListener("submit", function (e) { e.preventDefault(); decodificar($("deco-in").value); });
+  ["00b52423", "10000593", "03c52683", "fed606e3", "ff9ff06f", "02c5c533", "34102573", "30200073"].forEach(function (x) {
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = x;
+    b.addEventListener("click", function () { $("deco-in").value = x; decodificar(x); });
+    $("deco-ej").appendChild(b);
+  });
+  decodificar($("deco-in").value);
+})();
+</script>
+</body>
+</html>

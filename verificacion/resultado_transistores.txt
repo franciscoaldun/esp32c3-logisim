@@ -1,0 +1,57 @@
+Circuito: ESP32C3_Logisim_ALU_transistores.circ
+51 pruebas
+
+rv32ui-addi            PASS                            53 s
+rv32ui-add             PASS                            55 s
+rv32ui-and             PASS                            57 s
+rv32ui-andi            PASS                            57 s
+rv32ui-auipc           PASS                            55 s
+rv32ui-beq             PASS                            55 s
+rv32ui-bge             PASS                            47 s
+rv32ui-blt             PASS                            46 s
+rv32ui-bgeu            PASS                            50 s
+rv32ui-bltu            PASS                            48 s
+rv32ui-bne             PASS                            47 s
+rv32ui-jal             PASS                            45 s
+rv32ui-jalr            PASS                            47 s
+rv32ui-lb              PASS                            48 s
+rv32ui-lbu             PASS                            48 s
+rv32ui-lh              PASS                            49 s
+rv32ui-lhu             PASS                            50 s
+rv32ui-ld_st           PASS                            65 s
+rv32ui-lui             PASS                            48 s
+rv32ui-lw              PASS                            52 s
+rv32ui-or              PASS                            52 s
+rv32ui-ori             PASS                            52 s
+rv32ui-sb              PASS                            53 s
+rv32ui-sh              PASS                            52 s
+rv32ui-simple          PASS                            48 s
+rv32ui-sll             PASS                            50 s
+rv32ui-slli            PASS                            47 s
+rv32ui-slt             PASS                            50 s
+rv32ui-slti            PASS                            48 s
+rv32ui-sltiu           PASS                            48 s
+rv32ui-sltu            PASS                            55 s
+rv32ui-sra             PASS                            63 s
+rv32ui-srai            PASS                            60 s
+rv32ui-srl             PASS                            58 s
+rv32ui-srli            PASS                            56 s
+rv32ui-st_ld           PASS                            57 s
+rv32ui-sub             PASS                            56 s
+rv32ui-sw              PASS                            61 s
+rv32ui-xor             PASS                            62 s
+rv32ui-xori            PASS                            63 s
+rv32um-div             PASS                            55 s
+rv32um-divu            PASS                            67 s
+rv32um-mul             PASS                            62 s
+rv32um-mulh            PASS                            60 s
+rv32um-mulhsu          PASS                            48 s
+rv32um-mulhu           PASS                            41 s
+rv32um-rem             PASS                            39 s
+rv32um-remu            PASS                            39 s
+adaptados-fence_i_c3   PASS                            43 s
+adaptados-rvc_c3       PASS                            40 s
+control-falla_a_proposito OK (fallo esperado: FAIL F 00000003)    35 s
+
+RESULTADO: 50 de 50 pasan
+Control negativo: OK (fallo esperado: FAIL F 00000003)
