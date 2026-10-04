@@ -54,6 +54,62 @@ To reproduce:
 
 The full results are in [`verificacion/`](verificacion).
 
+## Gallery
+
+**What the board's terminal prints when it boots** (real output, captured from the simulation):
+
+```
+ESP-ROM:esp32c3-logisim (modelo educativo)
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+
+Hola desde el ESP32-C3 en Logisim!
+Motivo del reset: POWERON
+MAC: 02:4c:47:53:43:33
+misa=0x40001104  mvendorid=0x612
+123456 * 789 = 97406784 ; 123456 / 789 = 156
+Escribe algo en el teclado:
+```
+
+And the official ESP-IDF FreeRTOS example (`idf/tareas_y_colas`), with the real `ESP_LOGI` format:
+
+```
+I (5602) tareas: creando tareas
+I (9690) tareas: 3 tareas corriendo; presiona BOOT
+```
+
+### Inside the chip
+
+| | |
+|---|---|
+| <img src="docs/chip_por_dentro.png" alt="The ESP32C3 circuit: CPU, system bus, memories, peripherals, timers and interrupt system as blocks"> | **The chip, one level down.** The `ESP32C3` circuit, laid out like a floorplan, left to right: CPU, system bus, memories (boot ROM, FLASH, SRAM, RTC), peripherals, timers and reset, and the interrupt system. Double-click any block to go inside. |
+| <img src="docs/alu_32_sumadores_cmos.png" alt="32 full adders in a row forming the ALU's ripple-carry adder"> | **The ALU adder of the transistor version.** 32 full adders in a row (ripple carry); the carry travels from bit 0 on the right to bit 31 on the left. Each box is the 28-transistor adder below: 896 transistors take part in every addition the CPU makes. |
+
+### Down to the transistor
+
+<p align="center"><img src="docs/sumador_cmos_28_transistores.png" alt="CMOS mirror full adder made of 28 P and N transistors" width="860"></p>
+
+**A 28-transistor CMOS full adder (the "mirror adder").** A 10-transistor carry network, a 14-transistor sum network that reuses the inverted carry, and two inverters. Green wires are at 1, dark green at 0.
+
+| | |
+|---|---|
+| <img src="docs/nand_cmos.png" alt="CMOS NAND gate with two P transistors in parallel and two N in series"> | **CMOS NAND, 4 transistors.** Two P in parallel pull the output to 1, two N in series pull it to 0, and they never conduct at the same time. |
+| <img src="docs/contador_flipflops.png" alt="4-bit counter made of four D flip-flops and the CMOS adder"> | **Memory: a 4-bit counter.** Four D flip-flops built from transistor NANDs, plus the CMOS adder computing Q + 1 between clock edges. |
+
+<p align="center"><img src="docs/laboratorio_transistores.png" alt="The transistor lab: NOT, NAND and NOR gates, full adder, 4-bit adder with displays and a counter" width="760"></p>
+
+**The transistor lab** (`LaboratorioTransistores`): gates, the full adder, a 4-bit adder with hex displays and the counter with its own clock, all interactive.
+
+### The interactive guide
+
+`GUIDE.html` (English) and `GUIA.html` (Spanish) explain the architecture with widgets that work offline.
+
+| | |
+|---|---|
+| <img src="docs/guia_paso_a_paso.png" alt="Step-by-step widget: six instructions blinking GPIO8, debug panel and timing diagram"> | **Step by step.** Six instructions that blink GPIO8, run half a clock cycle at a time, with the same debug panel the board has and a timing diagram. Here the `sw` to `GPIO_OUT_W1TS` has just turned the LED on. |
+| <img src="docs/guia_camino_de_datos.png" alt="CPU datapath diagram highlighting the blocks used by a store instruction"> | **The datapath.** Pick an instruction and see which blocks and wires it uses. Here `sw a1, 8(a0)`: the address adder, the load/store unit and the bus. |
+| <img src="docs/guia_sumador.png" alt="8-bit adder widget with clickable bits and the carry rippling"> | **An 8-bit adder** you can click, with the carry rippling through each full adder, signed and unsigned results and overflow. |
+| <img src="docs/guia_decodificador.png" alt="Instruction decoder widget splitting a 32-bit instruction into its fields"> | **Instruction decoder.** Paste the value from the board's IR and it shows the assembly, what it does and every field of the instruction. |
+
 ---
 
 ## Quick start

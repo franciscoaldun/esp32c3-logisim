@@ -961,7 +961,7 @@ python compilar.py examples/my_test      <span class="com"># C with main() and s
     var s = S, c = comb(s), t = "";
     PROG.forEach(function (p) {
       var act = p.pc === s.pc;
-      t += '<tr class="' + (act ? "actual" : "") + '"><td>' + hex8(p.pc) + '</td><td>' + hex8(p.w) + "</td><td>" + p.asm.replace(/ /g, "&nbsp;") + '</td><td class="c">' + (act ? '<span class="fase-tag">' + s.fase + "</span> · " : "") + p.nota + "</td></tr>";
+      t += '<tr class="' + (act ? "actual" : "") + '"><td>' + hex8(p.pc) + '</td><td>' + hex8(p.w) + "</td><td>" + p.asm.replace(/ /g, "&nbsp;") + '</td><td class="c">' + (act ? '<span class="fase-tag">' + ({ BUSCA: "FETCH", EJECUTA: "EXECUTE" }[s.fase] || s.fase) + "</span> · " : "") + p.nota + "</td></tr>";
     });
     $("pap-prog").innerHTML = t;
     var d = "";

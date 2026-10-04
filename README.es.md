@@ -45,6 +45,62 @@ La CPU pasa las pruebas oficiales [`riscv-tests`](https://github.com/riscv-softw
 
 Para repetirlo: `git clone --recursive`, instala ESP-IDF y Logisim Evolution 5, y ejecuta `python verificacion/correr_riscv_tests.py`. Los resultados completos están en [`verificacion/`](verificacion).
 
+## Galería
+
+**Lo que escribe la terminal de la placa al arrancar** (salida real, capturada de la simulación):
+
+```
+ESP-ROM:esp32c3-logisim (modelo educativo)
+rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+
+Hola desde el ESP32-C3 en Logisim!
+Motivo del reset: POWERON
+MAC: 02:4c:47:53:43:33
+misa=0x40001104  mvendorid=0x612
+123456 * 789 = 97406784 ; 123456 / 789 = 156
+Escribe algo en el teclado:
+```
+
+Y el ejemplo de FreeRTOS estilo ESP-IDF (`idf/tareas_y_colas`), con el formato real de `ESP_LOGI`:
+
+```
+I (5602) tareas: creando tareas
+I (9690) tareas: 3 tareas corriendo; presiona BOOT
+```
+
+### El chip por dentro
+
+| | |
+|---|---|
+| <img src="docs/chip_por_dentro.png" alt="El circuito ESP32C3: CPU, bus del sistema, memorias, periféricos, temporizadores e interrupciones como bloques"> | **El chip, un nivel más abajo.** El circuito `ESP32C3` ordenado como un plano, de izquierda a derecha: CPU, bus del sistema, memorias (ROM de arranque, FLASH, SRAM, RTC), periféricos, temporizadores y reset, y el sistema de interrupciones. Doble clic en cualquier bloque para entrar. |
+| <img src="docs/alu_32_sumadores_cmos.png" alt="32 sumadores completos en fila que forman el sumador de la ALU"> | **El sumador de la ALU en la versión de transistores.** 32 sumadores completos en fila (acarreo en cascada); el acarreo viaja del bit 0, a la derecha, al bit 31, a la izquierda. Cada cuadro es el sumador de 28 transistores de abajo: en cada suma de la CPU participan 896 transistores. |
+
+### Hasta el transistor
+
+<p align="center"><img src="docs/sumador_cmos_28_transistores.png" alt="Sumador completo CMOS espejo hecho con 28 transistores P y N" width="860"></p>
+
+**Sumador completo CMOS de 28 transistores (el «sumador espejo»).** Una red de acarreo de 10 transistores, una red de suma de 14 que reutiliza el acarreo negado, y dos inversores. Los cables en verde claro están en 1; en verde oscuro, en 0.
+
+| | |
+|---|---|
+| <img src="docs/nand_cmos.png" alt="Compuerta NAND CMOS con dos transistores P en paralelo y dos N en serie"> | **NAND CMOS, 4 transistores.** Dos P en paralelo suben la salida a 1, dos N en serie la bajan a 0, y nunca conducen a la vez. |
+| <img src="docs/contador_flipflops.png" alt="Contador de 4 bits hecho con cuatro flip-flops D y el sumador CMOS"> | **Memoria: un contador de 4 bits.** Cuatro flip-flops D hechos con NAND de transistores, y el sumador CMOS calculando Q + 1 entre flancos del reloj. |
+
+<p align="center"><img src="docs/laboratorio_transistores.png" alt="El laboratorio de transistores: compuertas NOT, NAND y NOR, sumador completo, sumador de 4 bits con displays y un contador" width="760"></p>
+
+**El laboratorio de transistores** (`LaboratorioTransistores`): compuertas, el sumador completo, un sumador de 4 bits con displays y el contador con su propio reloj, todo interactivo.
+
+### La guía interactiva
+
+`GUIA.html` (español) y `GUIDE.html` (inglés) explican la arquitectura con widgets que funcionan sin internet. Las capturas son de la versión en inglés.
+
+| | |
+|---|---|
+| <img src="docs/guia_paso_a_paso.png" alt="Widget paso a paso: seis instrucciones que hacen parpadear el GPIO8, panel de depuración y cronograma"> | **Paso a paso.** Seis instrucciones que hacen parpadear el GPIO8, de a medio ciclo de reloj, con el mismo panel de depuración de la placa y un cronograma. Aquí el `sw` a `GPIO_OUT_W1TS` acaba de encender el LED. |
+| <img src="docs/guia_camino_de_datos.png" alt="Diagrama del camino de datos de la CPU con los bloques que usa una instrucción de almacenamiento"> | **El camino de datos.** Eliges una instrucción y ves qué bloques y cables usa. Aquí `sw a1, 8(a0)`: el sumador de direcciones, la unidad de carga y almacenamiento y el bus. |
+| <img src="docs/guia_sumador.png" alt="Widget de un sumador de 8 bits con bits clicables y el acarreo avanzando"> | **Un sumador de 8 bits** en el que haces clic, con el acarreo avanzando por cada sumador completo, resultados con y sin signo y desborde. |
+| <img src="docs/guia_decodificador.png" alt="Widget decodificador que separa una instrucción de 32 bits en sus campos"> | **Decodificador de instrucciones.** Pegas el valor del IR de la placa y te muestra el ensamblador, qué hace y cada campo de la instrucción. |
+
 ---
 
 ## Empezar
